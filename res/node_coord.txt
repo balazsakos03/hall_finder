@@ -1,0 +1,17 @@
+n1 - 41, 1597 - start
+n2 - 521, 1597 - elagazas
+n3 - 842, 1597 - elagazas
+n4 - 521, 892 - elagazas
+n5 - 521, 262 - elagazas
+n6 - 848, 262 - elagazas
+n7 - 237, 1555 - bufe bejarat
+n8 - 796, 1775 - 1_iroda bejarat
+n9 - 571, 1399 - 2_iroda bejarat
+n10 - 571, 1148 - titkarsag bejarat
+n11 - 237, 942 - 3_iroda bejarat
+n12 - 237, 842 - 4_iroda bejarat
+n13 - 571, 495 - 2_raktar bejarat
+n14 - 240, 308 - 1_raktar bejarat
+n15 - 848, 609 - admin szoba bejarat
+n16 - 571, 87 - ferfi mosdo bejarat
+n17 - 471, 87 - noi mosdo bejarat
