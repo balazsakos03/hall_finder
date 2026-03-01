@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +21,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -27,7 +30,7 @@ import com.example.hall_finder.R
 import com.example.hall_finder.graph.AStar
 import com.example.hall_finder.model.MapData
 import kotlin.math.exp
-
+import androidx.compose.ui.graphics.StrokeCap
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun MapScreen(startNodeId: String) {
@@ -128,24 +131,64 @@ fun MapScreen(startNodeId: String) {
 
                     //utvonal kirajzolasa
                     if(path.size > 1){
-                        for(i in 0 until path.size -1){
+                        for(i in 0 until path.size - 1){
                             val fromNode = MapData.nodes.first{it.id == path[i]}
                             val toNode = MapData.nodes.first{it.id == path[i+1]}
 
                             drawLine(
-                                color = androidx.compose.ui.graphics.Color.Blue,
-                                start = androidx.compose.ui.geometry.Offset(
+                                color = Color(0xFF2962FF),
+                                start = Offset(
                                     offsetX + fromNode.x * scale,
                                     offsetY + fromNode.y * scale
                                 ),
-                                end = androidx.compose.ui.geometry.Offset(
+                                end = Offset(
                                     offsetX + toNode.x * scale,
                                     offsetY + toNode.y *scale
                                 ),
-                                strokeWidth = 12f
+                                strokeWidth = 18f,
+                                cap = StrokeCap.Round
                             )
                         }
                     }
+
+                    //start helyzet
+                    val startNode = MapData.nodes.first{ it.id == startNodeId}
+                    drawCircle(
+                        color = Color.White,
+                        radius = 28f,
+                        center = Offset(
+                            offsetX + startNode.x * scale,
+                            offsetY + startNode.y * scale
+                        )
+                    )
+                    drawCircle(
+                        color = Color(0xFF00C853),
+                        radius = 18f,
+                        center = Offset(
+                            offsetX + startNode.x * scale,
+                            offsetY + startNode.y * scale
+                        )
+                    )
+
+                    //cel jeloles
+                    val goalNodeId = selectedDestination.value.first
+                    val goalNode = MapData.nodes.first{ it.id == goalNodeId }
+                    drawCircle(
+                        color = Color.White,
+                        radius = 28f,
+                        center = Offset(
+                            offsetX + goalNode.x * scale,
+                            offsetY + goalNode.y *scale
+                        )
+                    )
+                    drawCircle(
+                        color = Color(0xFFAA00FF),
+                        radius = 18f,
+                        center = Offset(
+                            offsetX + goalNode.x * scale,
+                            offsetY + goalNode.y *scale
+                        )
+                    )
                 }
             }
         }
@@ -160,8 +203,11 @@ fun DestinationDropdown(
 ){
     var expanded by remember {mutableStateOf(false)}
     Box(modifier = Modifier.fillMaxWidth().padding(16.dp)){
-        Button(onClick = {expanded = true}, modifier = Modifier.fillMaxWidth()){
-            Text("Cél: ${selected.second}")
+        ElevatedCard(modifier = Modifier.fillMaxWidth(), onClick = {expanded=true}) {
+            Text(
+                text = "Cél: ${selected.second}",
+                modifier = Modifier.padding(16.dp)
+            )
         }
 
         DropdownMenu(expanded = expanded, onDismissRequest = {expanded = false}) {
