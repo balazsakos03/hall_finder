@@ -24,6 +24,7 @@ import com.example.hall_finder.model.MapData
 import com.example.hall_finder.model.Node
 import android.util.Log
 import androidx.compose.runtime.LaunchedEffect
+import com.example.hall_finder.graph.AStar
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,8 +43,22 @@ class MainActivity : ComponentActivity() {
 fun MapScreen() {
 
     LaunchedEffect(Unit) {
-        val neighbors = MapData.graph.getNeighbors("n2")
-        Log.d("GRAPH TEST", neighbors.toString())
+        /*val neighbors = MapData.graph.getNeighbors("n2")
+        Log.d("GRAPH TEST", neighbors.toString())*/
+
+        val aStar = AStar(MapData.graph, MapData.nodes)
+        val path = aStar.findPath("n1", "n15")
+
+        Log.d("PATH TEST", path.toString())
+
+        /*Log.d("CHECK", "n1: ${MapData.graph.getNeighbors("n1")}")
+        Log.d("CHECK", "n2: ${MapData.graph.getNeighbors("n2")}")
+        Log.d("CHECK", "node_C: ${MapData.graph.getNeighbors("node_C")}")
+        Log.d("CHECK", "node_D: ${MapData.graph.getNeighbors("node_D")}")
+        Log.d("CHECK", "n4: ${MapData.graph.getNeighbors("n4")}")
+        Log.d("CHECK", "node_F: ${MapData.graph.getNeighbors("node_F")}")
+        Log.d("CHECK", "n5: ${MapData.graph.getNeighbors("n5")}")
+        Log.d("CHECK", "n6: ${MapData.graph.getNeighbors("n6")}")*/
     }
 
     val figmaWidth = 1080f

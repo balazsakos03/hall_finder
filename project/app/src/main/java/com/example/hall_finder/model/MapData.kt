@@ -49,7 +49,7 @@ object MapData {
 
         addBidirectionalEdge("node_F", "n5")
         addBidirectionalEdge("n5", "node_G")
-        addBidirectionalEdge("n5", "n5")
+        addBidirectionalEdge("n5", "n6")
         addBidirectionalEdge("n5", "node_H")
 
         //termek
