@@ -5,27 +5,55 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import com.example.hall_finder.R
 import com.example.hall_finder.graph.AStar
 import com.example.hall_finder.model.MapData
+import kotlin.math.exp
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
-fun MapScreen() {
+fun MapScreen(startNodeId: String) {
+    val destinations = listOf(
+        "n7" to "Büfé",
+        "n8" to "I. Iroda",
+        "n9" to "II. Iroda",
+        "n10" to "Titkárság",
+        "n11" to "III. Iroda",
+        "n12" to "IV. Iroda",
+        "n13" to "II. Raktár",
+        "n14" to "I. Raktár",
+        "n15" to "Admin",
+        "n16" to "Férfi mosdó",
+        "n17" to "Női mosdó"
+    )
 
+    val selectedDestination = remember { mutableStateOf(destinations.first()) }
     val pathState = remember { mutableStateOf<List<String>>(emptyList()) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(startNodeId, selectedDestination.value) {
         val aStar = AStar(MapData.graph, MapData.nodes)
-        pathState.value = aStar.findPath("n1", "n15")
+        pathState.value = aStar.findPath(
+            startNodeId,
+            selectedDestination.value.first
+        )
     }
 
     val path = pathState.value
@@ -33,80 +61,119 @@ fun MapScreen() {
     val figmaWidth = 1080f
     val figmaHeight = 1920f
 
-    BoxWithConstraints(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Column(modifier = Modifier.fillMaxSize()){
+        //cel kivalaszto
+        DestinationDropdown(
+            destinations = destinations,
+            selected = selectedDestination.value,
+            onSelected = {selectedDestination.value = it}
+        )
 
-        val screenWidth = constraints.maxWidth.toFloat()
-        val screenHeight = constraints.maxHeight.toFloat()
-
-        val imageAspect = figmaWidth / figmaHeight
-        val screenAspect = screenWidth / screenHeight
-
-        val scale: Float
-        val imageWidth: Float
-        val imageHeight: Float
-        val offsetX: Float
-        val offsetY: Float
-
-        if (screenAspect > imageAspect) {
-            // Screen wider than image
-            scale = screenHeight / figmaHeight
-            imageHeight = screenHeight
-            imageWidth = figmaWidth * scale
-            offsetX = (screenWidth - imageWidth) / 2f
-            offsetY = 0f
-        } else {
-            // Screen taller than image
-            scale = screenWidth / figmaWidth
-            imageWidth = screenWidth
-            imageHeight = figmaHeight * scale
-            offsetX = 0f
-            offsetY = (screenHeight - imageHeight) / 2f
-        }
-
-        Box(modifier = Modifier.fillMaxSize()) {
-
-            Image(
-                painter = painterResource(id = R.drawable.map_vector),
-                contentDescription = "Map",
-                contentScale = ContentScale.Fit,
+        BoxWithConstraints(
                 modifier = Modifier.fillMaxSize()
-            )
+                ) {
 
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                //nodeok kirajzolasa
-                MapData.nodes.forEach { node ->
-                    drawCircle(
-                        color = androidx.compose.ui.graphics.Color.Red,
-                        radius = 15f,
-                        center = androidx.compose.ui.geometry.Offset(
-                            offsetX + node.x * scale,
-                            offsetY + node.y * scale
+            val screenWidth = constraints.maxWidth.toFloat()
+            val screenHeight = constraints.maxHeight.toFloat()
+
+            val imageAspect = figmaWidth / figmaHeight
+            val screenAspect = screenWidth / screenHeight
+
+            val scale: Float
+            val imageWidth: Float
+            val imageHeight: Float
+            val offsetX: Float
+            val offsetY: Float
+
+            if (screenAspect > imageAspect) {
+                // Screen wider than image
+                scale = screenHeight / figmaHeight
+                imageHeight = screenHeight
+                imageWidth = figmaWidth * scale
+                offsetX = (screenWidth - imageWidth) / 2f
+                offsetY = 0f
+            } else {
+                // Screen taller than image
+                scale = screenWidth / figmaWidth
+                imageWidth = screenWidth
+                imageHeight = figmaHeight * scale
+                offsetX = 0f
+                offsetY = (screenHeight - imageHeight) / 2f
+            }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+
+                Image(
+                    painter = painterResource(id = R.drawable.map_vector),
+                    contentDescription = "Map",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    //nodeok kirajzolasa csak debug mode-ban
+                    val debugMode = false
+                    if(debugMode){
+                        MapData.nodes.forEach { node ->
+                        drawCircle(
+                            color = androidx.compose.ui.graphics.Color.Red,
+                            radius = 15f,
+                            center = androidx.compose.ui.geometry.Offset(
+                                offsetX + node.x * scale,
+                                offsetY + node.y * scale
+                            )
                         )
-                    )
-                }
+                        }
+                    }
 
-                //utvonal kirajzolasa
-                if(path.size > 1){
-                    for(i in 0 until path.size -1){
-                        val fromNode = MapData.nodes.first{it.id == path[i]}
-                        val toNode = MapData.nodes.first{it.id == path[i+1]}
+                    //utvonal kirajzolasa
+                    if(path.size > 1){
+                        for(i in 0 until path.size -1){
+                            val fromNode = MapData.nodes.first{it.id == path[i]}
+                            val toNode = MapData.nodes.first{it.id == path[i+1]}
 
-                        drawLine(
-                            color = androidx.compose.ui.graphics.Color.Blue,
-                            start = androidx.compose.ui.geometry.Offset(
-                                offsetX + fromNode.x * scale,
-                                offsetY + fromNode.y * scale
-                            ),
-                            end = androidx.compose.ui.geometry.Offset(
-                                offsetX + toNode.x * scale,
-                                offsetY + toNode.y *scale
-                            ),
-                            strokeWidth = 12f
-                        )
+                            drawLine(
+                                color = androidx.compose.ui.graphics.Color.Blue,
+                                start = androidx.compose.ui.geometry.Offset(
+                                    offsetX + fromNode.x * scale,
+                                    offsetY + fromNode.y * scale
+                                ),
+                                end = androidx.compose.ui.geometry.Offset(
+                                    offsetX + toNode.x * scale,
+                                    offsetY + toNode.y *scale
+                                ),
+                                strokeWidth = 12f
+                            )
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun DestinationDropdown(
+    destinations: List<Pair<String, String>>,
+    selected: Pair<String, String>,
+    onSelected: (Pair<String, String>) -> Unit
+){
+    var expanded by remember {mutableStateOf(false)}
+    Box(modifier = Modifier.fillMaxWidth().padding(16.dp)){
+        Button(onClick = {expanded = true}, modifier = Modifier.fillMaxWidth()){
+            Text("Cél: ${selected.second}")
+        }
+
+        DropdownMenu(expanded = expanded, onDismissRequest = {expanded = false}) {
+            destinations.forEach {
+                destination ->
+                DropdownMenuItem(
+                    text = {Text(destination.second)},
+                    onClick = {
+                        onSelected(destination)
+                        expanded = false
+                    }
+                )
             }
         }
     }

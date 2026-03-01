@@ -5,15 +5,36 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.hall_finder.ui.MapScreen
+import com.example.hall_finder.ui.QRScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme{
-                MapScreen()
+            var appState by remember { mutableStateOf<AppState>(AppState.WaitingForQR) }
+
+            MaterialTheme {
+
+                when (val state = appState) {
+
+                    is AppState.WaitingForQR -> {
+                        QRScreen(
+                            onQrScanned = { scannedNodeId ->
+                                appState = AppState.MapLoaded(scannedNodeId)
+                            }
+                        )
+                    }
+
+                    is AppState.MapLoaded -> {
+                        MapScreen(startNodeId = state.startNodeId)
+                    }
+                }
             }
         }
     }
