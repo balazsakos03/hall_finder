@@ -15,3 +15,13 @@ n14 - 240, 308 - 1_raktar bejarat
 n15 - 848, 609 - admin szoba bejarat
 n16 - 571, 87 - ferfi mosdo bejarat
 n17 - 471, 87 - noi mosdo bejarat
+
+plusz nodeok a helyes grafert:
+node_A: 237, 1597 
+node_B: 842, 1775 
+node_C: 521, 1399 
+node_D: 521, 1148 
+node_E: 237, 892 
+node_F: 521, 495 
+node_G: 240, 262 
+node_H: 521, 87

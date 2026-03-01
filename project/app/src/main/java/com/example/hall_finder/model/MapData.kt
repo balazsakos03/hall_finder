@@ -1,5 +1,7 @@
 package com.example.hall_finder.model
 
+import com.example.hall_finder.graph.Graph
+
 object MapData {
     val nodes = listOf(
         Node("n1", 56.5f, 1612.5f),
@@ -30,4 +32,37 @@ object MapData {
         Node("node_G", 255.5f, 277.5f),
         Node("node_H", 536.5f, 102.5f)
     )
+
+    val graph = Graph(nodes).apply {
+        //folyoso gerince
+        addBidirectionalEdge("n1", "node_A")
+        addBidirectionalEdge("node_A", "n2")
+        addBidirectionalEdge("n2", "n3")
+        addBidirectionalEdge("n3", "node_B")
+
+        addBidirectionalEdge("n2", "node_C")
+        addBidirectionalEdge("node_C", "node_D")
+        addBidirectionalEdge("node_D", "n4")
+
+        addBidirectionalEdge("n4", "node_E")
+        addBidirectionalEdge("n4", "node_F")
+
+        addBidirectionalEdge("node_F", "n5")
+        addBidirectionalEdge("n5", "node_G")
+        addBidirectionalEdge("n5", "n5")
+        addBidirectionalEdge("n5", "node_H")
+
+        //termek
+        addBidirectionalEdge("n7", "node_A")
+        addBidirectionalEdge("n8", "node_B")
+        addBidirectionalEdge("n9", "node_C")
+        addBidirectionalEdge("n10", "node_D")
+        addBidirectionalEdge("n12", "node_E")
+        addBidirectionalEdge("n11", "node_E")
+        addBidirectionalEdge("n13", "node_F")
+        addBidirectionalEdge("n14", "node_G")
+        addBidirectionalEdge("n15", "n6")
+        addBidirectionalEdge("n16", "node_H")
+        addBidirectionalEdge("n17", "node_H")
+    }
 }

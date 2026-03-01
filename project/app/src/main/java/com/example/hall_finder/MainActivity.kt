@@ -22,6 +22,8 @@ import com.example.hall_finder.ui.theme.Hall_finderTheme
 import androidx.compose.foundation.layout.*
 import com.example.hall_finder.model.MapData
 import com.example.hall_finder.model.Node
+import android.util.Log
+import androidx.compose.runtime.LaunchedEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +40,11 @@ class MainActivity : ComponentActivity() {
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun MapScreen() {
+
+    LaunchedEffect(Unit) {
+        val neighbors = MapData.graph.getNeighbors("n2")
+        Log.d("GRAPH TEST", neighbors.toString())
+    }
 
     val figmaWidth = 1080f
     val figmaHeight = 1920f
