@@ -1,23 +1,36 @@
 package com.example.hall_finder.ui
 
+import android.R.attr.shadowColor
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,22 +40,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.example.hall_finder.R
 import com.example.hall_finder.graph.AStar
 import com.example.hall_finder.model.MapData
-import kotlin.math.exp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontWeight.Companion.SemiBold
+import kotlin.math.atan2
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
-fun MapScreen(startNodeId: String) {
+fun MapScreen(startNodeId: String, isDarkMode: Boolean, onToggleDarkMode: () -> Unit) {
 
     val destinations = listOf(
         "n7" to "Büfé",
@@ -69,40 +92,66 @@ fun MapScreen(startNodeId: String) {
         )
     }
 
-    val path = pathState.value
-
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // 🗺 MAP + ROUTE LAYER
+        // map+route layer
         MapContent(
             startNodeId = startNodeId,
             goalNodeId = selectedDestination.value.first,
-            path = path
+            path = pathState.value,
+            isDarkMode = isDarkMode
         )
 
-        // 🎯 FLOATING DESTINATION CARD
+        // uticel kivalasztasa
         DestinationCard(
             destinations = destinations,
             selected = selectedDestination.value,
             onSelected = { selectedDestination.value = it },
+            onToggleDarkMode = onToggleDarkMode,
+            isDarkMode = isDarkMode,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 24.dp)
+                .padding(top = 52.dp)
         )
     }
 }
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun MapContent(
     startNodeId: String,
     goalNodeId: String,
-    path: List<String>
+    path: List<String>,
+    isDarkMode: Boolean
 ) {
     val figmaWidth = 1080f
     val figmaHeight = 1920f
 
+    //pulzalo utvonal animacio
+    val infiniteTransition = rememberInfiniteTransition(label="route")
+    val dashPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 60f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "dashPhase"
+    )
+
+    //megjelenes animacio
+    val arrowScale by animateFloatAsState(
+        targetValue = if(path.isNotEmpty()) 1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "arrowScale"
+    )
+
+    val primaryColor   = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.secondary   // nyil szine
+    val tertiaryColor  = MaterialTheme.colorScheme.tertiary    // cel pin szine
+    val surfaceColor   = MaterialTheme.colorScheme.surface
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val constraints = this.constraints
         val screenWidth = constraints.maxWidth.toFloat()
         val screenHeight = constraints.maxHeight.toFloat()
 
@@ -113,37 +162,49 @@ fun MapContent(
         val offsetX: Float
         val offsetY: Float
 
-        val primaryColor = MaterialTheme.colorScheme.primary
-        val secondaryColor = MaterialTheme.colorScheme.secondary
-        val tertiaryColor = MaterialTheme.colorScheme.tertiary
-        val surfaceColor = MaterialTheme.colorScheme.surface
-
-        var zoomScale by remember {mutableStateOf(1f) }
-        var panX by remember { mutableStateOf(0f) }
-        var panY by remember { mutableStateOf(0f) }
-
-        if (screenAspect > imageAspect) {
+        if(screenAspect > imageAspect){
             scale = screenHeight / figmaHeight
-            val imageWidth = figmaWidth * scale
-            offsetX = (screenWidth - imageWidth) / 2f
+            offsetX = (screenWidth - figmaWidth * scale) / 2f
             offsetY = 0f
-        } else {
+        }else{
             scale = screenWidth / figmaWidth
-            val imageHeight = figmaHeight * scale
             offsetX = 0f
-            offsetY = (screenHeight - imageHeight) / 2f
+            offsetY = (screenHeight - figmaHeight * scale) / 2f
+        }
+
+        //kezdo node kepernyo koordinatai
+        val startNode = MapData.nodes.first {it.id == startNodeId}
+        val startScreenX = offsetX + startNode.x * scale
+        val startScreenY = offsetY + startNode.y * scale
+
+        //zoom/pan state
+        var zoomScale by remember {mutableStateOf(2f) } //indulaskor 2x zoom
+        //betolteskor a nyil keruljon kozepre
+        var panX by remember { mutableStateOf((screenWidth  / 2f - startScreenX) * 2f) }
+        var panY by remember { mutableStateOf((screenHeight / 2f - startScreenY) * 2f) }
+
+        val arrowAngle = remember(path) {
+            if(path.size >= 2){
+                val from = MapData.nodes.first {it.id == path[0]}
+                val to = MapData.nodes.first {it.id == path[1]}
+                val dx = to.x - from.x
+                val dy = to.y - from.y
+                //canvas y tengelye lefele no -> atan2(dy,dx) adja a szoget
+                //+90f mert a nyil alapbol lefele mutat
+                Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+            }else 0f
         }
 
         Box(modifier = Modifier.fillMaxSize().pointerInput(Unit){
             detectTransformGestures { _, pan, zoom, _ ->
-                val newScale = (zoomScale * zoom).coerceIn(1f, 4f)
+                val newScale = (zoomScale * zoom).coerceIn(1f, 5f)
                 zoomScale = newScale
 
-                val maxX = (constraints.maxWidth * (zoomScale - 1)) / 2
-                val maxY = (constraints.maxHeight * (zoomScale - 1)) / 2
+                val maxX = (screenWidth * (zoomScale - 1)) / 2f
+                val maxY = (screenHeight * (zoomScale - 1)) / 2f
 
-                panX = (panX + pan.x * 0.8f).coerceIn(-maxX, maxX)
-                panY = (panY + pan.y * 0.8f).coerceIn(-maxY, maxY)
+                panX = (panX + pan.x).coerceIn(-maxX, maxX)
+                panY = (panY + pan.y).coerceIn(-maxY, maxY)
             }
         }.graphicsLayer(
             scaleX = zoomScale,
@@ -153,7 +214,12 @@ fun MapContent(
         )
         ){
             Image(
-                painter = painterResource(id = R.drawable.map_vector),
+                painter = painterResource(
+                    id = if (isDarkMode)
+                        R.drawable.map_vector_dark
+                    else
+                        R.drawable.map_vector
+                ),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
@@ -161,82 +227,145 @@ fun MapContent(
 
             Canvas(modifier = Modifier.fillMaxSize()) {
 
-                //utvonal rajzolas
+                //utvonal rajzolas - pulzalo dash update
                 if (path.size > 1) {
                     for (i in 0 until path.size - 1) {
 
-                        val fromNode = MapData.nodes.first { it.id == path[i] }
-                        val toNode = MapData.nodes.first { it.id == path[i + 1] }
+                        val from = MapData.nodes.first { it.id == path[i] }
+                        val to = MapData.nodes.first { it.id == path[i + 1] }
 
+                        val start = Offset(offsetX + from.x * scale, offsetY + from.y * scale)
+                        val end   = Offset(offsetX + to.x   * scale, offsetY + to.y   * scale)
+
+                        //arnyek, glow
                         drawLine(
-                            color = primaryColor.copy(alpha = 0.25f),
-                            start = Offset(
-                                offsetX + fromNode.x * scale,
-                                offsetY + fromNode.y * scale
-                            ),
-                            end = Offset(
-                                offsetX + toNode.x * scale,
-                                offsetY + toNode.y * scale
-                            ),
-                            strokeWidth = 32f,
+                            color = primaryColor.copy(alpha = 0.18f),
+                            start = start,
+                            end = end,
+                            strokeWidth = 36f,
                             cap = StrokeCap.Round
                         )
+                        //alap vonal
                         drawLine(
-                            color = primaryColor,
-                            start = Offset(
-                                offsetX + fromNode.x * scale,
-                                offsetY + fromNode.y * scale
-                            ),
-                            end = Offset(
-                                offsetX + toNode.x * scale,
-                                offsetY + toNode.y * scale
-                            ),
-                            strokeWidth = 18f,
+                            color = primaryColor.copy(alpha = 0.55f),
+                            start = start,
+                            end = end,
+                            strokeWidth = 14f,
                             cap = StrokeCap.Round
+                        )
+                        //animalt dash
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.75f),
+                            start = start,
+                            end = end,
+                            strokeWidth = 14f,
+                            cap = StrokeCap.Round,
+                            pathEffect = PathEffect.dashPathEffect(
+                                intervals = floatArrayOf(20f, 40f),
+                                phase = -dashPhase
+                            )
                         )
                     }
                 }
 
-                //kezdo pozicio
-                val startNode = MapData.nodes.first { it.id == startNodeId }
-                drawCircle(
-                    color = surfaceColor,
-                    radius = 26f,
-                    center = Offset(
-                        offsetX + startNode.x * scale,
-                        offsetY + startNode.y * scale
-                    )
-                )
-                drawCircle(
-                    color = secondaryColor,
-                    radius = 16f,
-                    center = Offset(
-                        offsetX + startNode.x * scale,
-                        offsetY + startNode.y * scale
-                    )
+                //cel pin marker
+                val goalNode = MapData.nodes.first{it.id == goalNodeId}
+                drawPinMarker(
+                    center = Offset(offsetX + goalNode.x * scale, offsetY + goalNode.y * scale),
+                    color  = tertiaryColor,
+                    shadowColor = tertiaryColor.copy(alpha = 0.3f),
+                    scale  = scale
                 )
 
-                //cel
-                val goalNode = MapData.nodes.first { it.id == goalNodeId }
-                drawCircle(
-                    color = surfaceColor,
-                    radius = 26f,
-                    center = Offset(
-                        offsetX + goalNode.x * scale,
-                        offsetY + goalNode.y * scale
-                    )
+
+                //jelenlegi pozicio
+                val startCenter = Offset(
+                    offsetX + startNode.x * scale,
+                    offsetY + startNode.y * scale
                 )
-                drawCircle(
-                    color = tertiaryColor,
-                    radius = 16f,
-                    center = Offset(
-                        offsetX + goalNode.x * scale,
-                        offsetY + goalNode.y * scale
-                    )
+                drawNavigationArrow(
+                    center = startCenter,
+                    angleDeg = arrowAngle,
+                    color = secondaryColor,
+                    shadowColor = secondaryColor.copy(alpha = 0.35f),
+                    arrowScale = arrowScale
                 )
             }
         }
     }
+}
+
+//rajzolas segito fuggvenyek
+private fun DrawScope.drawNavigationArrow(
+    center: Offset,
+    angleDeg: Float,
+    color: Color,
+    shadowColor: Color,
+    arrowScale: Float
+){
+    val r = 32f * arrowScale //alap sugar meret
+    rotate(degrees = angleDeg, pivot = center){
+        //arnyek
+        drawCircle(color = shadowColor, radius = r * 1.9f, center = center)
+        //feher keret
+        drawCircle(color = Color.White, radius = r * 1.35f, center = center)
+
+        //nyil haromszog(felfele mutat majd forgatja)
+        val path = Path().apply {
+            moveTo(center.x, center.y - r * 1.3f) //csucs
+            lineTo(center.x + r, center.y + r * 0.9f) //jobb also
+            lineTo(center.x, center.y + r * 0.3f) //also kozep
+            lineTo(center.x - r, center.y + r * 0.9f) //bal also
+            close()
+        }
+        drawPath(path = path, color = color)
+
+        //belso kor(pupilla szeru megjelenes)
+        drawCircle(
+            color = Color.White.copy(alpha = 0.45f),
+            radius = r * 0.35f,
+            center = Offset(center.x, center.y + r * 0.1f)
+        )
+    }
+}
+
+private fun DrawScope.drawPinMarker(
+    center: Offset,
+    color: Color,
+    shadowColor: Color,
+    scale: Float
+){
+    val r = 28f
+    val stemH = r * 1.4f
+
+    //arnyek
+    drawCircle(
+        color = shadowColor,
+        radius = r * 1.5f,
+        center = Offset(center.x, center.y - stemH - r * 0.5f)
+    )
+
+    val pinPath = Path().apply{
+        addOval(
+            androidx.compose.ui.geometry.Rect(
+                left = center.x - r,
+                top = center.y - stemH - r * 2f,
+                right = center.x + r,
+                bottom = center.y - stemH
+            )
+        )
+        //haromszog
+        moveTo(center.x - r * 0.55f, center.y - stemH - r * 0.3f)
+        lineTo(center.x + r * 0.55f, center.y - stemH - r * 0.3f)
+        lineTo(center.x,             center.y)   // hegy = center
+        close()
+    }
+    drawPath(path = pinPath, color = color)
+    drawCircle(
+        color = Color.White,
+        radius = r * 0.5f,
+        center = Offset(center.x, center.y - stemH - r)
+    )
 }
 
 @Composable
@@ -244,37 +373,98 @@ fun DestinationCard(
     destinations: List<Pair<String, String>>,
     selected: Pair<String, String>,
     onSelected: (Pair<String, String>) -> Unit,
+    onToggleDarkMode: () -> Unit,
+    isDarkMode: Boolean,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    ElevatedCard(
-        modifier = modifier.fillMaxWidth(0.9f),
-        shape = RoundedCornerShape(24.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth(0.92f),
+        shape     = RoundedCornerShape(28.dp),
+        color     = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+        shadowElevation = 8.dp
     ) {
-        Box(modifier = Modifier.padding(16.dp)) {
-
-            Text(
-                text = selected.second,
-                style = MaterialTheme.typography.titleMedium,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // PIN ikon bal oldalon
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = true }
-            )
-
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
             ) {
-                destinations.forEach { destination ->
-                    DropdownMenuItem(
-                        text = { Text(destination.second) },
-                        onClick = {
-                            onSelected(destination)
-                            expanded = false
-                        }
-                    )
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint   = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Destination szöveg + dropdown
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text  = "Úti cél",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text     = selected.second,
+                    style    = MaterialTheme.typography.titleMedium,
+                    fontWeight = SemiBold,
+                    modifier = Modifier.clickable { expanded = true }
+                )
+
+                DropdownMenu(
+                    expanded          = expanded,
+                    onDismissRequest  = { expanded = false }
+                ) {
+                    destinations.forEach { dest ->
+                        DropdownMenuItem(
+                            text    = { Text(dest.second) },
+                            onClick = {
+                                onSelected(dest)
+                                expanded = false
+                            },
+                            leadingIcon = {
+                                if (dest == selected) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocationOn,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
+            }
+
+            // Dark mode toggle gomb
+            FilledIconButton(
+                onClick = onToggleDarkMode,
+                colors  = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ),
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                    contentDescription = if (isDarkMode) "Világos mód" else "Sötét mód",
+                    tint     = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
