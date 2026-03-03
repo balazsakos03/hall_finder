@@ -256,10 +256,17 @@ fun MapContent(
             }
         }
 
+        val mapBgColor = if (isDarkMode){
+            Color(0xFF121212)
+        }else{
+            Color(0xFFFFFFFF)
+        }
+
         //kulso box a gesztusok fogadasaert
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(mapBgColor)
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, rotation ->
                         //gesztusoknal coroutine ami azonnal vegrahajtodik
