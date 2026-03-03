@@ -214,8 +214,11 @@ fun MapContent(
             val sx = dx * 2f
             val sy = dy * 2f
 
+            //eltolas a kepernyo also resze fele
+            val yOffset = screenHeight * 0.3f
+
             val targetPanX = -(sx * cos - sy * sin)
-            val targetPanY = -(sx * sin + sy * cos)
+            val targetPanY = -(sx * sin + sy * cos) + yOffset
 
             //kiszamolom a legrovidebb forgatasi utat
             val currentRot = mapRotation.value
@@ -246,10 +249,12 @@ fun MapContent(
                 val sx = dx * 2f
                 val sy = dy * 2f
 
+                val yOffset = screenHeight * 0.3f
+
                 zoomScale.snapTo(2f)
                 mapRotation.snapTo(-arrowAngle)
                 panX.snapTo(-(sx * cos - sy * sin))
-                panY.snapTo(-(sx * sin + sy * cos))
+                panY.snapTo(-(sx * sin + sy * cos) + yOffset)
 
                 isInitialized = true
                 lastStartNode = startNodeId
