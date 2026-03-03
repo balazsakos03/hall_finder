@@ -1,6 +1,6 @@
 package com.example.hall_finder.ui
 
-import android.R.attr.shadowColor
+import android.R.attr.rotation
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -52,15 +52,20 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontWeight.Companion.SemiBold
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.atan2
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
@@ -127,7 +132,6 @@ fun MapContent(
     val figmaWidth = 1080f
     val figmaHeight = 1920f
 
-    //pulzalo utvonal animacio
     val infiniteTransition = rememberInfiniteTransition(label="route")
     val dashPhase by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -139,7 +143,6 @@ fun MapContent(
         label = "dashPhase"
     )
 
-    //megjelenes animacio
     val arrowScale by animateFloatAsState(
         targetValue = if(path.isNotEmpty()) 1f else 0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
@@ -147,13 +150,17 @@ fun MapContent(
     )
 
     val primaryColor   = MaterialTheme.colorScheme.primary
-    val secondaryColor = MaterialTheme.colorScheme.secondary   // nyil szine
-    val tertiaryColor  = MaterialTheme.colorScheme.tertiary    // cel pin szine
-    val surfaceColor   = MaterialTheme.colorScheme.surface
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val tertiaryColor  = MaterialTheme.colorScheme.tertiary
+
+    //coroutine scope az animaciok futtatasahoz
+    val coroutineScope = rememberCoroutineScope()
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidth = constraints.maxWidth.toFloat()
         val screenHeight = constraints.maxHeight.toFloat()
+        val screenCenterX = screenWidth / 2f
+        val screenCenterY = screenHeight / 2f
 
         val imageAspect = figmaWidth / figmaHeight
         val screenAspect = screenWidth / screenHeight
@@ -166,22 +173,15 @@ fun MapContent(
             scale = screenHeight / figmaHeight
             offsetX = (screenWidth - figmaWidth * scale) / 2f
             offsetY = 0f
-        }else{
+        } else {
             scale = screenWidth / figmaWidth
             offsetX = 0f
             offsetY = (screenHeight - figmaHeight * scale) / 2f
         }
 
-        //kezdo node kepernyo koordinatai
-        val startNode = MapData.nodes.first {it.id == startNodeId}
+        val startNode = MapData.nodes.first { it.id == startNodeId }
         val startScreenX = offsetX + startNode.x * scale
         val startScreenY = offsetY + startNode.y * scale
-
-        //zoom/pan state
-        var zoomScale by remember {mutableStateOf(2f) } //indulaskor 2x zoom
-        //betolteskor a nyil keruljon kozepre
-        var panX by remember { mutableStateOf((screenWidth  / 2f - startScreenX) * 2f) }
-        var panY by remember { mutableStateOf((screenHeight / 2f - startScreenY) * 2f) }
 
         val arrowAngle = remember(path) {
             if(path.size >= 2){
@@ -189,108 +189,196 @@ fun MapContent(
                 val to = MapData.nodes.first {it.id == path[1]}
                 val dx = to.x - from.x
                 val dy = to.y - from.y
-                //canvas y tengelye lefele no -> atan2(dy,dx) adja a szoget
-                //+90f mert a nyil alapbol lefele mutat
-                Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
-            }else 0f
+                Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+            } else 0f
         }
 
-        Box(modifier = Modifier.fillMaxSize().pointerInput(Unit){
-            detectTransformGestures { _, pan, zoom, _ ->
-                val newScale = (zoomScale * zoom).coerceIn(1f, 5f)
-                zoomScale = newScale
+        // animatable allapotok
+        val zoomScale = remember { Animatable(2f) }
+        val mapRotation = remember { Animatable(0f) }
+        val panX = remember { Animatable(0f) }
+        val panY = remember { Animatable(0f) }
 
-                val maxX = (screenWidth * (zoomScale - 1)) / 2f
-                val maxY = (screenHeight * (zoomScale - 1)) / 2f
+        var isInitialized by remember { mutableStateOf(false) }
+        var lastStartNode by remember { mutableStateOf(startNodeId) }
 
-                panX = (panX + pan.x).coerceIn(-maxX, maxX)
-                panY = (panY + pan.y).coerceIn(-maxY, maxY)
+        //re-center funkcio animacioval
+        val performRecenter = {
+            val dx = startScreenX - screenCenterX
+            val dy = startScreenY - screenCenterY
+
+            val rad = Math.toRadians((-arrowAngle).toDouble())
+            val cos = kotlin.math.cos(rad).toFloat()
+            val sin = kotlin.math.sin(rad).toFloat()
+
+            val sx = dx * 2f
+            val sy = dy * 2f
+
+            val targetPanX = -(sx * cos - sy * sin)
+            val targetPanY = -(sx * sin + sy * cos)
+
+            //kiszamolom a legrovidebb forgatasi utat
+            val currentRot = mapRotation.value
+            val targetRotRaw = -arrowAngle
+            val diff = (targetRotRaw - currentRot) % 360f
+            val normalizedDiff = if (diff > 180f) diff - 360f else if (diff < -180f) diff + 360f else diff
+            val finalTargetRot = currentRot + normalizedDiff
+
+            //osszes animacio elinditasa egyszerre
+            coroutineScope.launch {
+                val animSpec = tween<Float>(durationMillis = 800, easing = FastOutSlowInEasing)
+                launch { zoomScale.animateTo(2f, animationSpec = animSpec) }
+                launch { mapRotation.animateTo(finalTargetRot, animationSpec = animSpec) }
+                launch { panX.animateTo(targetPanX, animationSpec = animSpec) }
+                launch { panY.animateTo(targetPanY, animationSpec = animSpec) }
             }
-        }.graphicsLayer(
-            scaleX = zoomScale,
-            scaleY = zoomScale,
-            translationX = panX,
-            translationY = panY
-        )
-        ){
-            Image(
-                painter = painterResource(
-                    id = if (isDarkMode)
-                        R.drawable.map_vector_dark
-                    else
-                        R.drawable.map_vector
-                ),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
-            )
+        }
 
-            Canvas(modifier = Modifier.fillMaxSize()) {
+        //automatikus igazitas betolteskor vagy uj kezdopontnal
+        if (!isInitialized || startNodeId != lastStartNode) {
+            //betolteskor azonnal ugrassal allitom be
+            LaunchedEffect(startNodeId) {
+                val dx = startScreenX - screenCenterX
+                val dy = startScreenY - screenCenterY
+                val rad = Math.toRadians((-arrowAngle).toDouble())
+                val cos = kotlin.math.cos(rad).toFloat()
+                val sin = kotlin.math.sin(rad).toFloat()
+                val sx = dx * 2f
+                val sy = dy * 2f
 
-                //utvonal rajzolas - pulzalo dash update
-                if (path.size > 1) {
-                    for (i in 0 until path.size - 1) {
+                zoomScale.snapTo(2f)
+                mapRotation.snapTo(-arrowAngle)
+                panX.snapTo(-(sx * cos - sy * sin))
+                panY.snapTo(-(sx * sin + sy * cos))
 
-                        val from = MapData.nodes.first { it.id == path[i] }
-                        val to = MapData.nodes.first { it.id == path[i + 1] }
+                isInitialized = true
+                lastStartNode = startNodeId
+            }
+        }
 
-                        val start = Offset(offsetX + from.x * scale, offsetY + from.y * scale)
-                        val end   = Offset(offsetX + to.x   * scale, offsetY + to.y   * scale)
+        //kulso box a gesztusok fogadasaert
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTransformGestures { centroid, pan, zoom, rotation ->
+                        //gesztusoknal coroutine ami azonnal vegrahajtodik
+                        coroutineScope.launch {
+                            val oldScale = zoomScale.value
+                            val newScale = (oldScale * zoom).coerceIn(1f, 5f)
+                            val effectiveZoom = newScale / oldScale
 
-                        //arnyek, glow
-                        drawLine(
-                            color = primaryColor.copy(alpha = 0.18f),
-                            start = start,
-                            end = end,
-                            strokeWidth = 36f,
-                            cap = StrokeCap.Round
-                        )
-                        //alap vonal
-                        drawLine(
-                            color = primaryColor.copy(alpha = 0.55f),
-                            start = start,
-                            end = end,
-                            strokeWidth = 14f,
-                            cap = StrokeCap.Round
-                        )
-                        //animalt dash
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.75f),
-                            start = start,
-                            end = end,
-                            strokeWidth = 14f,
-                            cap = StrokeCap.Round,
-                            pathEffect = PathEffect.dashPathEffect(
-                                intervals = floatArrayOf(20f, 40f),
-                                phase = -dashPhase
-                            )
-                        )
+                            val bx = screenCenterX + panX.value
+                            val by = screenCenterY + panY.value
+
+                            val dx = bx - centroid.x
+                            val dy = by - centroid.y
+
+                            val sx = dx * effectiveZoom
+                            val sy = dy * effectiveZoom
+
+                            val rad = Math.toRadians(rotation.toDouble())
+                            val cos = kotlin.math.cos(rad).toFloat()
+                            val sin = kotlin.math.sin(rad).toFloat()
+
+                            val rx = sx * cos - sy * sin
+                            val ry = sx * sin + sy * cos
+
+                            val newBx = centroid.x + rx + pan.x
+                            val newBy = centroid.y + ry + pan.y
+
+                            //a felhasznaloi interakcio azonnal frissiti a nezetet
+                            launch { zoomScale.snapTo(newScale) }
+                            launch { panX.snapTo(newBx - screenCenterX) }
+                            launch { panY.snapTo(newBy - screenCenterY) }
+                            launch { mapRotation.snapTo(mapRotation.value + rotation) }
+                        }
                     }
                 }
-
-                //cel pin marker
-                val goalNode = MapData.nodes.first{it.id == goalNodeId}
-                drawPinMarker(
-                    center = Offset(offsetX + goalNode.x * scale, offsetY + goalNode.y * scale),
-                    color  = tertiaryColor,
-                    shadowColor = tertiaryColor.copy(alpha = 0.3f),
-                    scale  = scale
+        ) {
+            //belso box a megjelenitesert az animatable ertekekkel
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = zoomScale.value,
+                        scaleY = zoomScale.value,
+                        translationX = panX.value,
+                        translationY = panY.value,
+                        rotationZ = mapRotation.value
+                    )
+            ) {
+                Image(
+                    painter = painterResource(
+                        id = if (isDarkMode) R.drawable.map_vector_dark else R.drawable.map_vector
+                    ),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
                 )
 
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    if (path.size > 1) {
+                        for (i in 0 until path.size - 1) {
+                            val from = MapData.nodes.first { it.id == path[i] }
+                            val to = MapData.nodes.first { it.id == path[i + 1] }
 
-                //jelenlegi pozicio
-                val startCenter = Offset(
-                    offsetX + startNode.x * scale,
-                    offsetY + startNode.y * scale
-                )
-                drawNavigationArrow(
-                    center = startCenter,
-                    angleDeg = arrowAngle,
-                    color = secondaryColor,
-                    shadowColor = secondaryColor.copy(alpha = 0.35f),
-                    arrowScale = arrowScale
-                )
+                            val start = Offset(offsetX + from.x * scale, offsetY + from.y * scale)
+                            val end   = Offset(offsetX + to.x   * scale, offsetY + to.y   * scale)
+
+                            drawLine(
+                                color = primaryColor.copy(alpha = 0.18f),
+                                start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round
+                            )
+                            drawLine(
+                                color = primaryColor.copy(alpha = 0.55f),
+                                start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round
+                            )
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.75f),
+                                start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round,
+                                pathEffect = PathEffect.dashPathEffect(
+                                    intervals = floatArrayOf(20f, 40f), phase = -dashPhase
+                                )
+                            )
+                        }
+                    }
+
+                    val goalNode = MapData.nodes.first { it.id == goalNodeId }
+                    drawPinMarker(
+                        center = Offset(offsetX + goalNode.x * scale, offsetY + goalNode.y * scale),
+                        color  = tertiaryColor,
+                        shadowColor = tertiaryColor.copy(alpha = 0.3f),
+                        scale  = scale
+                    )
+
+                    val startCenter = Offset(
+                        offsetX + startNode.x * scale, offsetY + startNode.y * scale
+                    )
+                    drawNavigationArrow(
+                        center = startCenter,
+                        angleDeg = arrowAngle,
+                        color = secondaryColor,
+                        shadowColor = secondaryColor.copy(alpha = 0.35f),
+                        arrowScale = arrowScale
+                    )
+                }
             }
+        }
+
+        //re-center gomb
+        FloatingActionButton(
+            onClick = { performRecenter() },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 24.dp, bottom = 48.dp),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ) {
+            Icon(
+                imageVector = Icons.Default.MyLocation,
+                contentDescription = "Középre igazítás"
+            )
         }
     }
 }
