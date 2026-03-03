@@ -67,6 +67,15 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -478,93 +487,177 @@ fun DestinationCard(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    //szurt lista a kereses alapjan
+    val filteredDestinations = remember(searchQuery, destinations) {
+        destinations.filter { it.second.contains(searchQuery, ignoreCase = true) }
+    }
 
     Surface(
         modifier = modifier
-            .fillMaxWidth(0.92f),
+            .fillMaxWidth(0.92f)
+            //kartya meret animalasa
+            .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
         shape     = RoundedCornerShape(28.dp),
         color     = MaterialTheme.colorScheme.surface,
         tonalElevation = 4.dp,
-        shadowElevation = 8.dp
+        //shadowElevation = 8.dp
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // PIN ikon bal oldalon
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint   = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+        Column(modifier = Modifier.fillMaxWidth()) {
 
-            Spacer(modifier = Modifier.width(14.dp))
-
-            // Destination szöveg + dropdown
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text  = "Úti cél",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text     = selected.second,
-                    style    = MaterialTheme.typography.titleMedium,
-                    fontWeight = SemiBold,
-                    modifier = Modifier.clickable { expanded = true }
-                )
-
-                DropdownMenu(
-                    expanded          = expanded,
-                    onDismissRequest  = { expanded = false }
+            if (!expanded) {
+                //osszecsukott allapot
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = true } //erre nyilik le a kereso
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    destinations.forEach { dest ->
-                        DropdownMenuItem(
-                            text    = { Text(dest.second) },
-                            onClick = {
-                                onSelected(dest)
-                                expanded = false
-                            },
-                            leadingIcon = {
-                                if (dest == selected) {
-                                    Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint   = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text  = "Úti cél",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text     = selected.second,
+                            style    = MaterialTheme.typography.titleMedium,
+                            fontWeight = SemiBold
+                        )
+                    }
+
+                    FilledIconButton(
+                        onClick = onToggleDarkMode,
+                        colors  = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        ),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (isDarkMode) "Világos mód" else "Sötét mód",
+                            tint     = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
-            }
+            } else {
+                //kinyitott allapott: keresosav+gorgetheto lista
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 8.dp)
+                ) {
+                    //keresomezo
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        placeholder = { Text("Keresés (pl. Iroda)") },
+                        leadingIcon = {
+                            IconButton(onClick = {
+                                expanded = false
+                                searchQuery = "" //vissza gombnal bezar es torli a keresest
+                            }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Vissza")
+                            }
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Törlés")
+                                }
+                            } else {
+                                Icon(Icons.Default.Search, contentDescription = "Keresés")
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(20.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
 
-            // Dark mode toggle gomb
-            FilledIconButton(
-                onClick = onToggleDarkMode,
-                colors  = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
-                    contentDescription = if (isDarkMode) "Világos mód" else "Sötét mód",
-                    tint     = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(20.dp)
-                )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    //talalatok listaja
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp) //ne takarja ki az egesz kepernyot de lehessen gorgetni
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        if (filteredDestinations.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "Nincs találat erre: \"$searchQuery\"",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            items(filteredDestinations) { dest ->
+                                val isSelected = dest == selected
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .clickable {
+                                            onSelected(dest) //kivalasztas
+                                            expanded = false //bezaras
+                                            searchQuery = "" //kereses torlese
+                                        }
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                            else Color.Transparent
+                                        )
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocationOn,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(
+                                        text = dest.second,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = if (isSelected) SemiBold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
