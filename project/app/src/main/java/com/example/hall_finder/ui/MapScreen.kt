@@ -68,6 +68,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -78,6 +79,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.example.hall_finder.model.AppLanguage
 import com.example.hall_finder.model.Translations
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.Wc
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -513,8 +519,7 @@ fun DestinationCard(
             .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
         shape     = RoundedCornerShape(28.dp),
         color     = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp,
-        //shadowElevation = 8.dp
+        tonalElevation = 4.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
 
@@ -574,13 +579,13 @@ fun DestinationCard(
                     }
                 }
             } else {
-                //kinyitott allapott: keresosav+gorgetheto lista
+                //kinyitott allapott: keresosav + gyorsgombok + gorgetheto lista
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp, bottom = 8.dp)
                 ) {
-                    //keresomezo
+                    // 1. Keresomezo
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -591,7 +596,7 @@ fun DestinationCard(
                         leadingIcon = {
                             IconButton(onClick = {
                                 expanded = false
-                                searchQuery = "" //vissza gombnal bezar es torli a keresest
+                                searchQuery = ""
                             }) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Vissza")
                             }
@@ -613,9 +618,83 @@ fun DestinationCard(
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // 2. ÚJ: GYORSGOMBOK (Quick Actions)
+                    // Csak akkor mutatjuk, ha nem gépelt még be semmit a felhasználó
+                    if (searchQuery.isEmpty()) {
+                        LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Büfé gyorsgomb (n7)
+                            val cafeDest = destinations.find { it.first == "n7" }
+                            if (cafeDest != null) {
+                                item {
+                                    AssistChip(
+                                        onClick = {
+                                            onSelected(cafeDest)
+                                            expanded = false
+                                        },
+                                        label = { Text(cafeDest.second) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.LocalCafe,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
 
-                    //talalatok listaja
+                            // Férfi mosdó (n16)
+                            val mensWcDest = destinations.find { it.first == "n16" }
+                            if (mensWcDest != null) {
+                                item {
+                                    AssistChip(
+                                        onClick = {
+                                            onSelected(mensWcDest)
+                                            expanded = false
+                                        },
+                                        label = { Text(mensWcDest.second) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Wc,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+
+                            // Női mosdó (n17)
+                            val womensWcDest = destinations.find { it.first == "n17" }
+                            if (womensWcDest != null) {
+                                item {
+                                    AssistChip(
+                                        onClick = {
+                                            onSelected(womensWcDest)
+                                            expanded = false
+                                        },
+                                        label = { Text(womensWcDest.second) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Wc, // Lehetne külön női ikon is, de a WC ikon egyértelmű
+                                                contentDescription = null,
+                                                modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // 3. Talalatok listaja
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
