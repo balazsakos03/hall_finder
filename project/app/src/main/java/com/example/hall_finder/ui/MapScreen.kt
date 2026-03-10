@@ -332,10 +332,18 @@ fun MapContent(
                         rotationZ = mapRotation.value
                     )
             ) {
+                val mapImageRes = when (currentLanguage) {
+                    AppLanguage.HU -> {
+                        if (isDarkMode) R.drawable.map_vector_dark
+                        else R.drawable.map_vector
+                    }
+                    AppLanguage.EN -> {
+                        if (isDarkMode) R.drawable.map_vector_dark_en
+                        else R.drawable.map_vector_en
+                    }
+                }
                 Image(
-                    painter = painterResource(
-                        id = if (isDarkMode) R.drawable.map_vector_dark else R.drawable.map_vector
-                    ),
+                    painter = painterResource(id = mapImageRes),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()
