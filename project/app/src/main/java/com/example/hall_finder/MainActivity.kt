@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.example.hall_finder.model.AppLanguage
 import com.example.hall_finder.ui.MapScreen
 import com.example.hall_finder.ui.QRScreen
 import com.example.hall_finder.ui.theme.Hall_finderTheme
@@ -21,6 +22,9 @@ class MainActivity : ComponentActivity() {
             var appState by remember { mutableStateOf<AppState>(AppState.WaitingForQR) }
             var darkMode by remember { mutableStateOf(false) }
 
+            //globalis nyelvi allapot
+            var currentLanguage by remember { mutableStateOf(AppLanguage.HU) }
+
             Hall_finderTheme(darkTheme = darkMode) {
                 when (val state = appState){
                     is AppState.WaitingForQR -> {
@@ -30,6 +34,11 @@ class MainActivity : ComponentActivity() {
                             },
                             onToggleDarkMode = {
                                 darkMode = !darkMode
+                            },
+                            //nyelv
+                            currentLanguage = currentLanguage,
+                            onLanguageChange = { newLanguage ->
+                                currentLanguage = newLanguage
                             }
                         )
                     }
@@ -37,7 +46,9 @@ class MainActivity : ComponentActivity() {
                         MapScreen(
                             startNodeId = state.startNodeId,
                             isDarkMode = darkMode,
-                            onToggleDarkMode = { darkMode = !darkMode }
+                            onToggleDarkMode = { darkMode = !darkMode },
+                            //nyelv
+                            currentLanguage = currentLanguage
                         )
                     }
                 }

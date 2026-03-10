@@ -76,33 +76,33 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import com.example.hall_finder.model.AppLanguage
+import com.example.hall_finder.model.Translations
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
-fun MapScreen(startNodeId: String, isDarkMode: Boolean, onToggleDarkMode: () -> Unit) {
+fun MapScreen(
+    startNodeId: String,
+    isDarkMode: Boolean,
+    onToggleDarkMode: () -> Unit,
+    currentLanguage: AppLanguage
+) {
+    val destinations = remember(currentLanguage) {
+        Translations.getDestinations(currentLanguage)
+    }
 
-    val destinations = listOf(
-        "n7" to "Büfé",
-        "n8" to "I. Iroda",
-        "n9" to "II. Iroda",
-        "n10" to "Titkárság",
-        "n11" to "III. Iroda",
-        "n12" to "IV. Iroda",
-        "n13" to "II. Raktár",
-        "n14" to "I. Raktár",
-        "n15" to "Admin",
-        "n16" to "Férfi mosdó",
-        "n17" to "Női mosdó"
-    )
+    val selectedDestinationId = remember { mutableStateOf(destinations.first().first) }
 
-    val selectedDestination = remember { mutableStateOf(destinations.first()) }
+    val currentSelectedPair = destinations.firstOrNull { it.first == selectedDestinationId.value }
+        ?: destinations.first()
+
     val pathState = remember { mutableStateOf<List<String>>(emptyList()) }
 
-    LaunchedEffect(startNodeId, selectedDestination.value.first) {
+    LaunchedEffect(startNodeId, selectedDestinationId.value) {
         val aStar = AStar(MapData.graph, MapData.nodes)
         pathState.value = aStar.findPath(
             startNodeId,
-            selectedDestination.value.first
+            selectedDestinationId.value
         )
     }
 
@@ -111,18 +111,20 @@ fun MapScreen(startNodeId: String, isDarkMode: Boolean, onToggleDarkMode: () -> 
         // map+route layer
         MapContent(
             startNodeId = startNodeId,
-            goalNodeId = selectedDestination.value.first,
+            goalNodeId = selectedDestinationId.value,
             path = pathState.value,
-            isDarkMode = isDarkMode
+            isDarkMode = isDarkMode,
+            currentLanguage = currentLanguage
         )
 
         // uticel kivalasztasa
         DestinationCard(
             destinations = destinations,
-            selected = selectedDestination.value,
-            onSelected = { selectedDestination.value = it },
+            selected = currentSelectedPair,
+            onSelected = { selectedDestinationId.value = it.first },
             onToggleDarkMode = onToggleDarkMode,
             isDarkMode = isDarkMode,
+            currentLanguage = currentLanguage,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 52.dp)
@@ -136,7 +138,8 @@ fun MapContent(
     startNodeId: String,
     goalNodeId: String,
     path: List<String>,
-    isDarkMode: Boolean
+    isDarkMode: Boolean,
+    currentLanguage: AppLanguage
 ) {
     val figmaWidth = 1080f
     val figmaHeight = 1920f
@@ -398,7 +401,7 @@ fun MapContent(
         ) {
             Icon(
                 imageVector = Icons.Default.MyLocation,
-                contentDescription = "Középre igazítás"
+                contentDescription = Translations.mapRecenter(currentLanguage) // <-- Itt a valtoztatas
             )
         }
     }
@@ -484,6 +487,7 @@ fun DestinationCard(
     onSelected: (Pair<String, String>) -> Unit,
     onToggleDarkMode: () -> Unit,
     isDarkMode: Boolean,
+    currentLanguage: AppLanguage,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -534,7 +538,7 @@ fun DestinationCard(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text  = "Úti cél",
+                            text  = Translations.mapDestination(currentLanguage),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -575,7 +579,7 @@ fun DestinationCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
-                        placeholder = { Text("Keresés (pl. Iroda)") },
+                        placeholder = { Text(Translations.mapSearchPlaceholder(currentLanguage)) },
                         leadingIcon = {
                             IconButton(onClick = {
                                 expanded = false
@@ -613,7 +617,7 @@ fun DestinationCard(
                         if (filteredDestinations.isEmpty()) {
                             item {
                                 Text(
-                                    text = "Nincs találat erre: \"$searchQuery\"",
+                                    text = Translations.mapNoResults(currentLanguage, searchQuery),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 32.dp),
@@ -623,7 +627,7 @@ fun DestinationCard(
                             }
                         } else {
                             items(filteredDestinations) { dest ->
-                                val isSelected = dest == selected
+                                val isSelected = dest.first == selected.first
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
