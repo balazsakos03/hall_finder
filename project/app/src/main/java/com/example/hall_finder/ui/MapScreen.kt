@@ -340,12 +340,12 @@ fun MapContent(
             ) {
                 val mapImageRes = when (currentLanguage) {
                     AppLanguage.HU -> {
-                        if (isDarkMode) R.drawable.map_vector_dark
-                        else R.drawable.map_vector
+                        if (isDarkMode) R.drawable.map_vector_lvl1_dark
+                        else R.drawable.map_vector_lvl1
                     }
                     AppLanguage.EN -> {
-                        if (isDarkMode) R.drawable.map_vector_dark_en
-                        else R.drawable.map_vector_en
+                        if (isDarkMode) R.drawable.map_vector_lvl1_en_dark
+                        else R.drawable.map_vector_lvl1_en
                     }
                 }
                 Image(
