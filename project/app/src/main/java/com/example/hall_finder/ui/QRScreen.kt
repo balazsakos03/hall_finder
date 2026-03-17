@@ -24,11 +24,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.hall_finder.model.AppLanguage
+import com.example.hall_finder.model.Translations
 
 @Composable
 fun QRScreen(
     onQrScanned: (String) -> Unit,
-    onToggleDarkMode: () -> Unit
+    onToggleDarkMode: () -> Unit,
+    currentLanguage: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit
 ) {
     val primary   = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.secondary
@@ -54,6 +62,8 @@ fun QRScreen(
         label = "pulseAlpha"
     )
 
+    var languageMenuExpanded by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -64,10 +74,36 @@ fun QRScreen(
                         MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
+        //nyelv valaszto menu
+        Box(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+            FilledTonalIconButton(onClick = { languageMenuExpanded = true }) {
+                Icon(Icons.Default.Language, contentDescription = "Nyelv / Language")
+            }
+            DropdownMenu(
+                expanded = languageMenuExpanded,
+                onDismissRequest = { languageMenuExpanded = false }
+            ) {
+                AppLanguage.values().forEach { language ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = language.displayName,
+                                fontWeight = if (currentLanguage == language) FontWeight.Bold else FontWeight.Normal,
+                                color = if (currentLanguage == language) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        onClick = {
+                            onLanguageChange(language)
+                            languageMenuExpanded = false
+                        }
+                    )
+                }
+            }
+        }
         Column(
+            modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
@@ -120,7 +156,7 @@ fun QRScreen(
 
             //szovegek
             Text(
-                text       = "Keresse az önhöz\nlegközelebbi QR kódot",
+                text       = Translations.qrTitle(currentLanguage),
                 style      = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 textAlign  = TextAlign.Center,
@@ -131,7 +167,7 @@ fun QRScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text      = "Szkennelje be a folyosón elhelyezett\nQR kódot a navigáció elindításához",
+                text      = Translations.qrSubtitle(currentLanguage),
                 style     = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color     = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -158,7 +194,7 @@ fun QRScreen(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text       = "QR kód szkennelése",
+                    text       = Translations.qrScanBtn(currentLanguage),
                     fontWeight = FontWeight.SemiBold,
                     fontSize   = 16.sp
                 )
@@ -175,7 +211,7 @@ fun QRScreen(
                 shape    = RoundedCornerShape(18.dp)
             ) {
                 Text(
-                    text     = "Demo indítása (n1)",
+                    text     = Translations.qrDemoBtn(currentLanguage),
                     fontSize = 14.sp,
                     color    = MaterialTheme.colorScheme.onSurfaceVariant
                 )

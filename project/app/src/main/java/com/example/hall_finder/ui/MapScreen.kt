@@ -68,6 +68,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -76,33 +77,38 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import com.example.hall_finder.model.AppLanguage
+import com.example.hall_finder.model.Translations
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.Wc
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
-fun MapScreen(startNodeId: String, isDarkMode: Boolean, onToggleDarkMode: () -> Unit) {
+fun MapScreen(
+    startNodeId: String,
+    isDarkMode: Boolean,
+    onToggleDarkMode: () -> Unit,
+    currentLanguage: AppLanguage
+) {
+    val destinations = remember(currentLanguage) {
+        Translations.getDestinations(currentLanguage)
+    }
 
-    val destinations = listOf(
-        "n7" to "Büfé",
-        "n8" to "I. Iroda",
-        "n9" to "II. Iroda",
-        "n10" to "Titkárság",
-        "n11" to "III. Iroda",
-        "n12" to "IV. Iroda",
-        "n13" to "II. Raktár",
-        "n14" to "I. Raktár",
-        "n15" to "Admin",
-        "n16" to "Férfi mosdó",
-        "n17" to "Női mosdó"
-    )
+    val selectedDestinationId = remember { mutableStateOf(destinations.first().first) }
 
-    val selectedDestination = remember { mutableStateOf(destinations.first()) }
+    val currentSelectedPair = destinations.firstOrNull { it.first == selectedDestinationId.value }
+        ?: destinations.first()
+
     val pathState = remember { mutableStateOf<List<String>>(emptyList()) }
 
-    LaunchedEffect(startNodeId, selectedDestination.value.first) {
+    LaunchedEffect(startNodeId, selectedDestinationId.value) {
         val aStar = AStar(MapData.graph, MapData.nodes)
         pathState.value = aStar.findPath(
             startNodeId,
-            selectedDestination.value.first
+            selectedDestinationId.value
         )
     }
 
@@ -111,18 +117,20 @@ fun MapScreen(startNodeId: String, isDarkMode: Boolean, onToggleDarkMode: () -> 
         // map+route layer
         MapContent(
             startNodeId = startNodeId,
-            goalNodeId = selectedDestination.value.first,
+            goalNodeId = selectedDestinationId.value,
             path = pathState.value,
-            isDarkMode = isDarkMode
+            isDarkMode = isDarkMode,
+            currentLanguage = currentLanguage
         )
 
         // uticel kivalasztasa
         DestinationCard(
             destinations = destinations,
-            selected = selectedDestination.value,
-            onSelected = { selectedDestination.value = it },
+            selected = currentSelectedPair,
+            onSelected = { selectedDestinationId.value = it.first },
             onToggleDarkMode = onToggleDarkMode,
             isDarkMode = isDarkMode,
+            currentLanguage = currentLanguage,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 52.dp)
@@ -136,7 +144,8 @@ fun MapContent(
     startNodeId: String,
     goalNodeId: String,
     path: List<String>,
-    isDarkMode: Boolean
+    isDarkMode: Boolean,
+    currentLanguage: AppLanguage
 ) {
     val figmaWidth = 1080f
     val figmaHeight = 1920f
@@ -329,10 +338,18 @@ fun MapContent(
                         rotationZ = mapRotation.value
                     )
             ) {
+                val mapImageRes = when (currentLanguage) {
+                    AppLanguage.HU -> {
+                        if (isDarkMode) R.drawable.map_vector_dark
+                        else R.drawable.map_vector
+                    }
+                    AppLanguage.EN -> {
+                        if (isDarkMode) R.drawable.map_vector_dark_en
+                        else R.drawable.map_vector_en
+                    }
+                }
                 Image(
-                    painter = painterResource(
-                        id = if (isDarkMode) R.drawable.map_vector_dark else R.drawable.map_vector
-                    ),
+                    painter = painterResource(id = mapImageRes),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()
@@ -398,7 +415,7 @@ fun MapContent(
         ) {
             Icon(
                 imageVector = Icons.Default.MyLocation,
-                contentDescription = "Középre igazítás"
+                contentDescription = Translations.mapRecenter(currentLanguage) // <-- Itt a valtoztatas
             )
         }
     }
@@ -484,6 +501,7 @@ fun DestinationCard(
     onSelected: (Pair<String, String>) -> Unit,
     onToggleDarkMode: () -> Unit,
     isDarkMode: Boolean,
+    currentLanguage: AppLanguage,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -501,8 +519,7 @@ fun DestinationCard(
             .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
         shape     = RoundedCornerShape(28.dp),
         color     = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp,
-        //shadowElevation = 8.dp
+        tonalElevation = 4.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
 
@@ -534,7 +551,7 @@ fun DestinationCard(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text  = "Úti cél",
+                            text  = Translations.mapDestination(currentLanguage),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -562,24 +579,24 @@ fun DestinationCard(
                     }
                 }
             } else {
-                //kinyitott allapott: keresosav+gorgetheto lista
+                //kinyitott allapott: keresosav + gyorsgombok + gorgetheto lista
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp, bottom = 8.dp)
                 ) {
-                    //keresomezo
+                    // 1. Keresomezo
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
-                        placeholder = { Text("Keresés (pl. Iroda)") },
+                        placeholder = { Text(Translations.mapSearchPlaceholder(currentLanguage)) },
                         leadingIcon = {
                             IconButton(onClick = {
                                 expanded = false
-                                searchQuery = "" //vissza gombnal bezar es torli a keresest
+                                searchQuery = ""
                             }) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Vissza")
                             }
@@ -601,9 +618,83 @@ fun DestinationCard(
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // 2. ÚJ: GYORSGOMBOK (Quick Actions)
+                    // Csak akkor mutatjuk, ha nem gépelt még be semmit a felhasználó
+                    if (searchQuery.isEmpty()) {
+                        LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Büfé gyorsgomb (n7)
+                            val cafeDest = destinations.find { it.first == "n7" }
+                            if (cafeDest != null) {
+                                item {
+                                    AssistChip(
+                                        onClick = {
+                                            onSelected(cafeDest)
+                                            expanded = false
+                                        },
+                                        label = { Text(cafeDest.second) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.LocalCafe,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
 
-                    //talalatok listaja
+                            // Férfi mosdó (n16)
+                            val mensWcDest = destinations.find { it.first == "n16" }
+                            if (mensWcDest != null) {
+                                item {
+                                    AssistChip(
+                                        onClick = {
+                                            onSelected(mensWcDest)
+                                            expanded = false
+                                        },
+                                        label = { Text(mensWcDest.second) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Wc,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+
+                            // Női mosdó (n17)
+                            val womensWcDest = destinations.find { it.first == "n17" }
+                            if (womensWcDest != null) {
+                                item {
+                                    AssistChip(
+                                        onClick = {
+                                            onSelected(womensWcDest)
+                                            expanded = false
+                                        },
+                                        label = { Text(womensWcDest.second) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Wc, // Lehetne külön női ikon is, de a WC ikon egyértelmű
+                                                contentDescription = null,
+                                                modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // 3. Talalatok listaja
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -613,7 +704,7 @@ fun DestinationCard(
                         if (filteredDestinations.isEmpty()) {
                             item {
                                 Text(
-                                    text = "Nincs találat erre: \"$searchQuery\"",
+                                    text = Translations.mapNoResults(currentLanguage, searchQuery),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 32.dp),
@@ -623,7 +714,7 @@ fun DestinationCard(
                             }
                         } else {
                             items(filteredDestinations) { dest ->
-                                val isSelected = dest == selected
+                                val isSelected = dest.first == selected.first
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
