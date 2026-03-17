@@ -1,3 +1,4 @@
+--foldszint
 n1 - 41, 1597 - start
 n2 - 521, 1597 - elagazas
 n3 - 842, 1597 - elagazas
@@ -15,6 +16,11 @@ n14 - 240, 308 - 1_raktar bejarat
 n15 - 848, 609 - admin szoba bejarat
 n16 - 571, 87 - ferfi mosdo bejarat
 n17 - 471, 87 - noi mosdo bejarat
+n18 - 890, 1777 - lepcso 1
+n19 - 897, 262 - lepcso 2
+n20 - 145, 266 - lift
+
+
 
 plusz nodeok a helyes grafert:
 node_A: 237, 1597 
