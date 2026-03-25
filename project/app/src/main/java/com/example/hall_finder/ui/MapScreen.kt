@@ -171,8 +171,11 @@ fun MapContent(
     val secondaryColor = MaterialTheme.colorScheme.secondary
     val tertiaryColor  = MaterialTheme.colorScheme.tertiary
 
-    //coroutine scope az animaciok futtatasahoz
     val coroutineScope = rememberCoroutineScope()
+
+    // --- ÚJ: Az aktuálisan megjelenített emelet követése ---
+    val startNode = remember(startNodeId) { MapData.nodes.first { it.id == startNodeId } }
+    var currentVisibleFloor by remember(startNodeId) { mutableStateOf(startNode.floor) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidth = constraints.maxWidth.toFloat()
@@ -197,21 +200,25 @@ fun MapContent(
             offsetY = (screenHeight - figmaHeight * scale) / 2f
         }
 
-        val startNode = MapData.nodes.first { it.id == startNodeId }
         val startScreenX = offsetX + startNode.x * scale
         val startScreenY = offsetY + startNode.y * scale
 
+        // Az arrowAngle logikája marad, de csak akkor van értelme, ha a startNode és a következő node is ezen az emeleten van.
+        // Bonyolult esetek elkerülése végett maradjon a sima 0, ha nincs egyértelmű irány.
         val arrowAngle = remember(path) {
             if(path.size >= 2){
                 val from = MapData.nodes.first {it.id == path[0]}
                 val to = MapData.nodes.first {it.id == path[1]}
-                val dx = to.x - from.x
-                val dy = to.y - from.y
-                Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+                if (from.floor == to.floor) { // Csak akkor forgassuk, ha ugyanazon a szinten van a mozgás
+                    val dx = to.x - from.x
+                    val dy = to.y - from.y
+                    Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+                } else {
+                    0f // Ha rögtön lépcsőzünk, ne forgassuk a térképet furcsán
+                }
             } else 0f
         }
 
-        // animatable allapotok
         val zoomScale = remember { Animatable(2f) }
         val mapRotation = remember { Animatable(0f) }
         val panX = remember { Animatable(0f) }
@@ -220,8 +227,10 @@ fun MapContent(
         var isInitialized by remember { mutableStateOf(false) }
         var lastStartNode by remember { mutableStateOf(startNodeId) }
 
-        //re-center funkcio animacioval
         val performRecenter = {
+            // Re-center közben automatikusan visszaváltunk a startNode emeletére
+            currentVisibleFloor = startNode.floor
+
             val dx = startScreenX - screenCenterX
             val dy = startScreenY - screenCenterY
 
@@ -231,21 +240,17 @@ fun MapContent(
 
             val sx = dx * 2f
             val sy = dy * 2f
-
-            //eltolas a kepernyo also resze fele
             val yOffset = screenHeight * 0.3f
 
             val targetPanX = -(sx * cos - sy * sin)
             val targetPanY = -(sx * sin + sy * cos) + yOffset
 
-            //kiszamolom a legrovidebb forgatasi utat
             val currentRot = mapRotation.value
             val targetRotRaw = -arrowAngle
             val diff = (targetRotRaw - currentRot) % 360f
             val normalizedDiff = if (diff > 180f) diff - 360f else if (diff < -180f) diff + 360f else diff
             val finalTargetRot = currentRot + normalizedDiff
 
-            //osszes animacio elinditasa egyszerre
             coroutineScope.launch {
                 val animSpec = tween<Float>(durationMillis = 800, easing = FastOutSlowInEasing)
                 launch { zoomScale.animateTo(2f, animationSpec = animSpec) }
@@ -255,9 +260,7 @@ fun MapContent(
             }
         }
 
-        //automatikus igazitas betolteskor vagy uj kezdopontnal
         if (!isInitialized || startNodeId != lastStartNode) {
-            //betolteskor azonnal ugrassal allitom be
             LaunchedEffect(startNodeId) {
                 val dx = startScreenX - screenCenterX
                 val dy = startScreenY - screenCenterY
@@ -266,7 +269,6 @@ fun MapContent(
                 val sin = kotlin.math.sin(rad).toFloat()
                 val sx = dx * 2f
                 val sy = dy * 2f
-
                 val yOffset = screenHeight * 0.3f
 
                 zoomScale.snapTo(2f)
@@ -279,20 +281,14 @@ fun MapContent(
             }
         }
 
-        val mapBgColor = if (isDarkMode){
-            Color(0xFF121212)
-        }else{
-            Color(0xFFFFFFFF)
-        }
+        val mapBgColor = if (isDarkMode) Color(0xFF121212) else Color(0xFFFFFFFF)
 
-        //kulso box a gesztusok fogadasaert
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(mapBgColor)
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, rotation ->
-                        //gesztusoknal coroutine ami azonnal vegrahajtodik
                         coroutineScope.launch {
                             val oldScale = zoomScale.value
                             val newScale = (oldScale * zoom).coerceIn(1f, 5f)
@@ -317,7 +313,6 @@ fun MapContent(
                             val newBx = centroid.x + rx + pan.x
                             val newBy = centroid.y + ry + pan.y
 
-                            //a felhasznaloi interakcio azonnal frissiti a nezetet
                             launch { zoomScale.snapTo(newScale) }
                             launch { panX.snapTo(newBx - screenCenterX) }
                             launch { panY.snapTo(newBy - screenCenterY) }
@@ -326,7 +321,6 @@ fun MapContent(
                     }
                 }
         ) {
-            //belso box a megjelenitesert az animatable ertekekkel
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -338,16 +332,20 @@ fun MapContent(
                         rotationZ = mapRotation.value
                     )
             ) {
-                val mapImageRes = when (currentLanguage) {
-                    AppLanguage.HU -> {
-                        if (isDarkMode) R.drawable.map_vector_lvl1_dark
-                        else R.drawable.map_vector_lvl1
+                // --- ÚJ: Térképkép kiválasztása Emelet, Nyelv és Téma alapján ---
+                val mapImageRes = when (currentVisibleFloor) {
+                    1 -> when (currentLanguage) {
+                        AppLanguage.HU -> if (isDarkMode) R.drawable.map_vector_lvl1_dark else R.drawable.map_vector_lvl1
+                        AppLanguage.EN -> if (isDarkMode) R.drawable.map_vector_lvl1_en_dark else R.drawable.map_vector_lvl1_en
                     }
-                    AppLanguage.EN -> {
-                        if (isDarkMode) R.drawable.map_vector_lvl1_en_dark
-                        else R.drawable.map_vector_lvl1_en
+                    2 -> when (currentLanguage) {
+                        // KÉRLEK ELLENŐRIZD, HOGY EZEK A FÁJLOK LÉTEZNEK-E AZ ANDROID STUDIO-BAN!
+                        AppLanguage.HU -> if (isDarkMode) R.drawable.map_vector_lvl2_dark else R.drawable.map_vector_lvl2
+                        AppLanguage.EN -> if (isDarkMode) R.drawable.map_vector_lvl2_en_dark else R.drawable.map_vector_lvl2_en
                     }
+                    else -> R.drawable.map_vector_lvl1 // Fallback
                 }
+
                 Image(
                     painter = painterResource(id = mapImageRes),
                     contentDescription = null,
@@ -361,50 +359,69 @@ fun MapContent(
                             val from = MapData.nodes.first { it.id == path[i] }
                             val to = MapData.nodes.first { it.id == path[i + 1] }
 
-                            val start = Offset(offsetX + from.x * scale, offsetY + from.y * scale)
-                            val end   = Offset(offsetX + to.x   * scale, offsetY + to.y   * scale)
+                            // --- ÚJ: Csak akkor rajzoljuk ki a vonalat, ha a jelenleg nézett emeleten van ---
+                            // VAGY ha épp teleportálunk a két emelet között (lépcső), akkor egy pöttyöt rajzolunk
+                            if (from.floor == currentVisibleFloor && to.floor == currentVisibleFloor) {
+                                val start = Offset(offsetX + from.x * scale, offsetY + from.y * scale)
+                                val end   = Offset(offsetX + to.x   * scale, offsetY + to.y   * scale)
 
-                            drawLine(
-                                color = primaryColor.copy(alpha = 0.18f),
-                                start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round
-                            )
-                            drawLine(
-                                color = primaryColor.copy(alpha = 0.55f),
-                                start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round
-                            )
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.75f),
-                                start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round,
-                                pathEffect = PathEffect.dashPathEffect(
-                                    intervals = floatArrayOf(20f, 40f), phase = -dashPhase
+                                drawLine(color = primaryColor.copy(alpha = 0.18f), start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round)
+                                drawLine(color = primaryColor.copy(alpha = 0.55f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round)
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.75f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round,
+                                    pathEffect = PathEffect.dashPathEffect(intervals = floatArrayOf(20f, 40f), phase = -dashPhase)
                                 )
-                            )
+                            }
                         }
                     }
 
                     val goalNode = MapData.nodes.first { it.id == goalNodeId }
-                    drawPinMarker(
-                        center = Offset(offsetX + goalNode.x * scale, offsetY + goalNode.y * scale),
-                        color  = tertiaryColor,
-                        shadowColor = tertiaryColor.copy(alpha = 0.3f),
-                        scale  = scale
-                    )
+                    // Csak akkor rajzoljuk ki a célt, ha a cél ezen az emeleten van
+                    if (goalNode.floor == currentVisibleFloor) {
+                        drawPinMarker(
+                            center = Offset(offsetX + goalNode.x * scale, offsetY + goalNode.y * scale),
+                            color  = tertiaryColor, shadowColor = tertiaryColor.copy(alpha = 0.3f), scale  = scale
+                        )
+                    }
 
-                    val startCenter = Offset(
-                        offsetX + startNode.x * scale, offsetY + startNode.y * scale
-                    )
-                    drawNavigationArrow(
-                        center = startCenter,
-                        angleDeg = arrowAngle,
-                        color = secondaryColor,
-                        shadowColor = secondaryColor.copy(alpha = 0.35f),
-                        arrowScale = arrowScale
-                    )
+                    // Csak akkor rajzoljuk ki a Start nyilat, ha a Start ezen az emeleten van
+                    if (startNode.floor == currentVisibleFloor) {
+                        val startCenter = Offset(offsetX + startNode.x * scale, offsetY + startNode.y * scale)
+                        drawNavigationArrow(
+                            center = startCenter, angleDeg = arrowAngle,
+                            color = secondaryColor, shadowColor = secondaryColor.copy(alpha = 0.35f), arrowScale = arrowScale
+                        )
+                    }
                 }
             }
         }
 
-        //re-center gomb
+        // --- ÚJ: Emeletváltó Gombok (Jobb oldalon) ---
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilledTonalIconButton(
+                onClick = { currentVisibleFloor = 2 },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = if (currentVisibleFloor == 2) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Text("2", fontWeight = if (currentVisibleFloor == 2) FontWeight.Bold else FontWeight.Normal)
+            }
+            FilledTonalIconButton(
+                onClick = { currentVisibleFloor = 1 },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = if (currentVisibleFloor == 1) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Text("1", fontWeight = if (currentVisibleFloor == 1) FontWeight.Bold else FontWeight.Normal)
+            }
+        }
+
+        // re-center gomb
         FloatingActionButton(
             onClick = { performRecenter() },
             modifier = Modifier
@@ -415,7 +432,7 @@ fun MapContent(
         ) {
             Icon(
                 imageVector = Icons.Default.MyLocation,
-                contentDescription = Translations.mapRecenter(currentLanguage) // <-- Itt a valtoztatas
+                contentDescription = Translations.mapRecenter(currentLanguage)
             )
         }
     }
