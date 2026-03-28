@@ -7,7 +7,7 @@ Egy modern, Android alapú beltéri navigációs alkalmazás, amely valós idej�
 ![Compose](https://img.shields.io/badge/UI-Jetpack_Compose-4285F4?logo=jetpackcompose&logoColor=white)
 
 <div align="center">
-  <img src="link_a_qr_olvasorol.jpg" width="250">
+  <img src="res/screenshots/qr_screen.jpg" width="250">
   <img src="res/screenshots/light_mode.jpg" width="250">
   <img src="res/screenshots/dark_mode.jpg" width="250">
 </div>
