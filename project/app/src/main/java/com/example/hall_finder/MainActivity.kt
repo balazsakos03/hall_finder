@@ -21,25 +21,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             var appState by remember { mutableStateOf<AppState>(AppState.WaitingForQR) }
             var darkMode by remember { mutableStateOf(false) }
-
-            //globalis nyelvi allapot
             var currentLanguage by remember { mutableStateOf(AppLanguage.HU) }
 
             Hall_finderTheme(darkTheme = darkMode) {
                 when (val state = appState){
                     is AppState.WaitingForQR -> {
                         QRScreen(
-                            onQrScanned = {scannedNodeId ->
+                            onQrScanned = { scannedNodeId ->
                                 appState = AppState.MapLoaded(scannedNodeId)
                             },
-                            onToggleDarkMode = {
-                                darkMode = !darkMode
-                            },
-                            //nyelv
+                            onToggleDarkMode = { darkMode = !darkMode },
                             currentLanguage = currentLanguage,
-                            onLanguageChange = { newLanguage ->
-                                currentLanguage = newLanguage
-                            }
+                            onLanguageChange = { newLanguage -> currentLanguage = newLanguage }
                         )
                     }
                     is AppState.MapLoaded -> {
@@ -47,7 +40,6 @@ class MainActivity : ComponentActivity() {
                             startNodeId = state.startNodeId,
                             isDarkMode = darkMode,
                             onToggleDarkMode = { darkMode = !darkMode },
-                            //nyelv
                             currentLanguage = currentLanguage
                         )
                     }
