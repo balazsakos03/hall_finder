@@ -8,7 +8,7 @@ Egy modern, Android alapú beltéri navigációs alkalmazás, amely valós idej�
 
 <div align="center">
   <img src="link_a_qr_olvasorol.jpg" width="250">
-  <img src="link_a_terkeprol.jpg" width="250">
+  <img src="res/screenshots/light_mode.jpg" width="250">
   <img src="res/screenshots/dark_mode.jpg" width="250">
 </div>
 
