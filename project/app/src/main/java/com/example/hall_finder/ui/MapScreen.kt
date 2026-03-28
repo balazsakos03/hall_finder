@@ -450,8 +450,24 @@ fun MapContent(
                 )
 
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    if (path.size > 1) {
-                        for (i in 0 until path.size - 1) {
+                    if (path.isNotEmpty() && targetPathIndex < path.size) {
+                        val targetNode = MapData.nodes.first { it.id == path[targetPathIndex] }
+                        val prevNodeId = if (targetPathIndex > 0) path[targetPathIndex - 1] else path[0]
+                        val prevNode = MapData.nodes.first { it.id == prevNodeId }
+
+                        if (prevNode.floor == currentVisibleFloor && targetNode.floor == currentVisibleFloor) {
+                            val start = Offset(offsetX + animatedX * scale, offsetY + animatedY * scale)
+                            val end = Offset(offsetX + targetNode.x * scale, offsetY + targetNode.y * scale)
+
+                            drawLine(color = primaryColor.copy(alpha = 0.18f), start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round)
+                            drawLine(color = primaryColor.copy(alpha = 0.55f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round)
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.75f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round,
+                                pathEffect = PathEffect.dashPathEffect(intervals = floatArrayOf(20f, 40f), phase = -dashPhase)
+                            )
+                        }
+
+                        for (i in targetPathIndex until path.size - 1) {
                             val from = MapData.nodes.first { it.id == path[i] }
                             val to = MapData.nodes.first { it.id == path[i + 1] }
 
@@ -670,7 +686,7 @@ fun DestinationCard(
                     ) {
                         Icon(
                             imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = if (isDarkMode) "Világos mód" else "Sötét mód",
+                            contentDescription = null,
                             tint     = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
@@ -694,16 +710,16 @@ fun DestinationCard(
                                 expanded = false
                                 searchQuery = ""
                             }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Vissza")
+                                Icon(Icons.Default.ArrowBack, contentDescription = null)
                             }
                         },
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Törlés")
+                                    Icon(Icons.Default.Close, contentDescription = null)
                                 }
                             } else {
-                                Icon(Icons.Default.Search, contentDescription = "Keresés")
+                                Icon(Icons.Default.Search, contentDescription = null)
                             }
                         },
                         singleLine = true,
