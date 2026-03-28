@@ -18,6 +18,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        //immersive mode
+        val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
+
         setContent {
             var appState by remember { mutableStateOf<AppState>(AppState.WaitingForQR) }
             var darkMode by remember { mutableStateOf(false) }
@@ -40,7 +45,10 @@ class MainActivity : ComponentActivity() {
                             startNodeId = state.startNodeId,
                             isDarkMode = darkMode,
                             onToggleDarkMode = { darkMode = !darkMode },
-                            currentLanguage = currentLanguage
+                            currentLanguage = currentLanguage,
+                            onBackToMenu = {
+                                appState = AppState.WaitingForQR
+                            }
                         )
                     }
                 }

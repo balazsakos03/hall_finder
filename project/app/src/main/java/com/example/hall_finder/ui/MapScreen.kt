@@ -88,6 +88,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Slider
@@ -102,7 +103,8 @@ fun MapScreen(
     startNodeId: String,
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
-    currentLanguage: AppLanguage
+    currentLanguage: AppLanguage,
+    onBackToMenu: () -> Unit
 ) {
     val destinations = remember(currentLanguage) {
         Translations.getDestinations(currentLanguage)
@@ -143,6 +145,20 @@ fun MapScreen(
                 .align(Alignment.TopCenter)
                 .padding(top = 52.dp)
         )
+
+        FloatingActionButton(
+            onClick = onBackToMenu,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 24.dp, bottom = 48.dp), // Szimmetrikus a Re-center gombbal
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Icon(
+                imageVector = Icons.Default.QrCodeScanner, // Kifejező ikon: "Új kód beolvasása"
+                contentDescription = "Újraolvasás / Vissza"
+            )
+        }
     }
 }
 
