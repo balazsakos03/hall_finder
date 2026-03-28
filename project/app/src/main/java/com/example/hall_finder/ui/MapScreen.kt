@@ -150,12 +150,12 @@ fun MapScreen(
             onClick = onBackToMenu,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 24.dp, bottom = 48.dp), // Szimmetrikus a Re-center gombbal
+                .padding(start = 24.dp, bottom = 48.dp),
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
         ) {
             Icon(
-                imageVector = Icons.Default.QrCodeScanner, // Kifejező ikon: "Új kód beolvasása"
+                imageVector = Icons.Default.QrCodeScanner,
                 contentDescription = "Újraolvasás / Vissza"
             )
         }
@@ -283,18 +283,21 @@ fun MapContent(
             offsetY = (screenHeight - figmaHeight * scale) / 2f
         }
 
-        val startScreenX = offsetX + currentX * scale
-        val startScreenY = offsetY + currentY * scale
+        val startScreenX = offsetX + animatedX * scale
+        val startScreenY = offsetY + animatedY * scale
 
         val zoomScale = remember { Animatable(2f) }
         val mapRotation = remember { Animatable(0f) }
         val panX = remember { Animatable(0f) }
         val panY = remember { Animatable(0f) }
 
+        var isTrackingMode by remember { mutableStateOf(true) }
+
         var isInitialized by remember { mutableStateOf(false) }
         var lastStartNode by remember { mutableStateOf(startNodeId) }
 
         val performRecenter = {
+            isTrackingMode = false
             currentVisibleFloor = startNode.floor
 
             val dx = startScreenX - screenCenterX
@@ -323,6 +326,8 @@ fun MapContent(
                 launch { mapRotation.animateTo(finalTargetRot, animationSpec = animSpec) }
                 launch { panX.animateTo(targetPanX, animationSpec = animSpec) }
                 launch { panY.animateTo(targetPanY, animationSpec = animSpec) }
+            }.invokeOnCompletion {
+                isTrackingMode = true
             }
         }
 
@@ -347,6 +352,32 @@ fun MapContent(
             }
         }
 
+        LaunchedEffect(animatedX, animatedY, arrowAngle, isTrackingMode, zoomScale.value) {
+            if (isTrackingMode) {
+                val dx = startScreenX - screenCenterX
+                val dy = startScreenY - screenCenterY
+                val rad = Math.toRadians((-arrowAngle).toDouble())
+                val cos = kotlin.math.cos(rad).toFloat()
+                val sin = kotlin.math.sin(rad).toFloat()
+
+                val sx = dx * zoomScale.value
+                val sy = dy * zoomScale.value
+                val yOffset = screenHeight * 0.3f
+
+                val targetPanX = -(sx * cos - sy * sin)
+                val targetPanY = -(sx * sin + sy * cos) + yOffset
+
+                val currentRot = mapRotation.value
+                val diff = (-arrowAngle - currentRot) % 360f
+                val normalizedDiff = if (diff > 180f) diff - 360f else if (diff < -180f) diff + 360f else diff
+                val finalTargetRot = currentRot + normalizedDiff
+
+                panX.snapTo(targetPanX)
+                panY.snapTo(targetPanY)
+                mapRotation.snapTo(finalTargetRot)
+            }
+        }
+
         val mapBgColor = if (isDarkMode) Color(0xFF121212) else Color(0xFFFFFFFF)
 
         Box(
@@ -355,6 +386,7 @@ fun MapContent(
                 .background(mapBgColor)
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, rotation ->
+                        isTrackingMode = false
                         coroutineScope.launch {
                             val oldScale = zoomScale.value
                             val newScale = (oldScale * zoom).coerceIn(1f, 5f)
@@ -457,26 +489,6 @@ fun MapContent(
             }
         }
 
-        /*Card(
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Lépések: $stepCount",
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = { performStep() }) {
-                    Text("Lépés szimulálása")
-                }
-            }
-        }*/
-
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -506,8 +518,8 @@ fun MapContent(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 24.dp, bottom = 48.dp),
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            containerColor = if (isTrackingMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (isTrackingMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
         ) {
             Icon(
                 imageVector = Icons.Default.MyLocation,
@@ -850,11 +862,16 @@ fun rememberDeviceAzimuth(): Float {
                     val orientationAngles = FloatArray(3)
                     SensorManager.getOrientation(rotationMatrix, orientationAngles)
 
-                    var azimuthDegrees = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
-                    if (azimuthDegrees < 0) {
-                        azimuthDegrees += 360f
-                    }
-                    azimuth.floatValue = azimuthDegrees
+                    var currentAzimuth = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
+                    if (currentAzimuth < 0) currentAzimuth += 360f
+
+                    val oldAzimuth = azimuth.floatValue
+                    var diff = currentAzimuth - oldAzimuth
+
+                    if (diff > 180f) diff -= 360f
+                    if (diff < -180f) diff += 360f
+
+                    azimuth.floatValue = (oldAzimuth + diff * 0.1f + 360f) % 360f
                 }
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
