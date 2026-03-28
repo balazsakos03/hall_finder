@@ -62,7 +62,6 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight.Companion.SemiBold
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -84,6 +83,18 @@ import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.Wc
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -113,8 +124,6 @@ fun MapScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-
-        // map+route layer
         MapContent(
             startNodeId = startNodeId,
             goalNodeId = selectedDestinationId.value,
@@ -123,7 +132,6 @@ fun MapScreen(
             currentLanguage = currentLanguage
         )
 
-        // uticel kivalasztasa
         DestinationCard(
             destinations = destinations,
             selected = currentSelectedPair,
@@ -138,7 +146,7 @@ fun MapScreen(
     }
 }
 
-@SuppressLint("UnusedBoxWithConstraintsScope")
+@SuppressLint("UnusedBoxWithConstraintsScope", "DefaultLocale")
 @Composable
 fun MapContent(
     startNodeId: String,
@@ -173,9 +181,68 @@ fun MapContent(
 
     val coroutineScope = rememberCoroutineScope()
 
-    // --- ÚJ: Az aktuálisan megjelenített emelet követése ---
     val startNode = remember(startNodeId) { MapData.nodes.first { it.id == startNodeId } }
     var currentVisibleFloor by remember(startNodeId) { mutableStateOf(startNode.floor) }
+
+    val mapNorthOffset = 279f
+    val rawAzimuth = rememberDeviceAzimuth()
+    val arrowAngle = (rawAzimuth - mapNorthOffset + 360f) % 360f
+
+    var stepCount by remember { mutableIntStateOf(0) }
+
+    var currentX by remember(startNodeId) { mutableFloatStateOf(startNode.x) }
+    var currentY by remember(startNodeId) { mutableFloatStateOf(startNode.y) }
+
+    val animatedX by animateFloatAsState(
+        targetValue = currentX,
+        animationSpec = tween(durationMillis = 300, easing = LinearEasing), label = "animX"
+    )
+    val animatedY by animateFloatAsState(
+        targetValue = currentY,
+        animationSpec = tween(durationMillis = 300, easing = LinearEasing), label = "animY"
+    )
+
+    var targetPathIndex by remember(startNodeId, path) { mutableIntStateOf(if (path.size > 1) 1 else 0) }
+    val stepSizePixels = 25f
+    val directionThreshold = 45f
+
+    val performStep = {
+        if (path.isNotEmpty() && targetPathIndex < path.size) {
+            val targetNode = MapData.nodes.first { it.id == path[targetPathIndex] }
+            val dx = targetNode.x - currentX
+            val dy = targetNode.y - currentY
+
+            var pathAngle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+            pathAngle = (pathAngle + 360f) % 360f
+
+            var angleDiff = Math.abs(arrowAngle - pathAngle)
+            if (angleDiff > 180f) {
+                angleDiff = 360f - angleDiff
+            }
+
+            if (angleDiff <= directionThreshold) {
+                stepCount++
+                val distanceToTarget = kotlin.math.sqrt((dx * dx) + (dy * dy))
+
+                if (distanceToTarget <= stepSizePixels) {
+                    currentX = targetNode.x
+                    currentY = targetNode.y
+                    if (targetPathIndex < path.size - 1) {
+                        targetPathIndex++
+                    }
+                } else {
+                    val ratio = stepSizePixels / distanceToTarget
+                    currentX += dx * ratio
+                    currentY += dy * ratio
+                }
+            }
+        }
+    }
+
+    rememberStepDetector(
+        currentAzimuth = rawAzimuth,
+        onStepDetected = { performStep() }
+    )
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val screenWidth = constraints.maxWidth.toFloat()
@@ -200,24 +267,8 @@ fun MapContent(
             offsetY = (screenHeight - figmaHeight * scale) / 2f
         }
 
-        val startScreenX = offsetX + startNode.x * scale
-        val startScreenY = offsetY + startNode.y * scale
-
-        // Az arrowAngle logikája marad, de csak akkor van értelme, ha a startNode és a következő node is ezen az emeleten van.
-        // Bonyolult esetek elkerülése végett maradjon a sima 0, ha nincs egyértelmű irány.
-        val arrowAngle = remember(path) {
-            if(path.size >= 2){
-                val from = MapData.nodes.first {it.id == path[0]}
-                val to = MapData.nodes.first {it.id == path[1]}
-                if (from.floor == to.floor) { // Csak akkor forgassuk, ha ugyanazon a szinten van a mozgás
-                    val dx = to.x - from.x
-                    val dy = to.y - from.y
-                    Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
-                } else {
-                    0f // Ha rögtön lépcsőzünk, ne forgassuk a térképet furcsán
-                }
-            } else 0f
-        }
+        val startScreenX = offsetX + currentX * scale
+        val startScreenY = offsetY + currentY * scale
 
         val zoomScale = remember { Animatable(2f) }
         val mapRotation = remember { Animatable(0f) }
@@ -228,7 +279,6 @@ fun MapContent(
         var lastStartNode by remember { mutableStateOf(startNodeId) }
 
         val performRecenter = {
-            // Re-center közben automatikusan visszaváltunk a startNode emeletére
             currentVisibleFloor = startNode.floor
 
             val dx = startScreenX - screenCenterX
@@ -332,18 +382,16 @@ fun MapContent(
                         rotationZ = mapRotation.value
                     )
             ) {
-                // --- ÚJ: Térképkép kiválasztása Emelet, Nyelv és Téma alapján ---
                 val mapImageRes = when (currentVisibleFloor) {
                     1 -> when (currentLanguage) {
                         AppLanguage.HU -> if (isDarkMode) R.drawable.map_vector_lvl1_dark else R.drawable.map_vector_lvl1
                         AppLanguage.EN -> if (isDarkMode) R.drawable.map_vector_lvl1_en_dark else R.drawable.map_vector_lvl1_en
                     }
                     2 -> when (currentLanguage) {
-                        // KÉRLEK ELLENŐRIZD, HOGY EZEK A FÁJLOK LÉTEZNEK-E AZ ANDROID STUDIO-BAN!
                         AppLanguage.HU -> if (isDarkMode) R.drawable.map_vector_lvl2_dark else R.drawable.map_vector_lvl2
                         AppLanguage.EN -> if (isDarkMode) R.drawable.map_vector_lvl2_en_dark else R.drawable.map_vector_lvl2_en
                     }
-                    else -> R.drawable.map_vector_lvl1 // Fallback
+                    else -> R.drawable.map_vector_lvl1
                 }
 
                 Image(
@@ -359,8 +407,6 @@ fun MapContent(
                             val from = MapData.nodes.first { it.id == path[i] }
                             val to = MapData.nodes.first { it.id == path[i + 1] }
 
-                            // --- ÚJ: Csak akkor rajzoljuk ki a vonalat, ha a jelenleg nézett emeleten van ---
-                            // VAGY ha épp teleportálunk a két emelet között (lépcső), akkor egy pöttyöt rajzolunk
                             if (from.floor == currentVisibleFloor && to.floor == currentVisibleFloor) {
                                 val start = Offset(offsetX + from.x * scale, offsetY + from.y * scale)
                                 val end   = Offset(offsetX + to.x   * scale, offsetY + to.y   * scale)
@@ -376,7 +422,6 @@ fun MapContent(
                     }
 
                     val goalNode = MapData.nodes.first { it.id == goalNodeId }
-                    // Csak akkor rajzoljuk ki a célt, ha a cél ezen az emeleten van
                     if (goalNode.floor == currentVisibleFloor) {
                         drawPinMarker(
                             center = Offset(offsetX + goalNode.x * scale, offsetY + goalNode.y * scale),
@@ -384,9 +429,9 @@ fun MapContent(
                         )
                     }
 
-                    // Csak akkor rajzoljuk ki a Start nyilat, ha a Start ezen az emeleten van
                     if (startNode.floor == currentVisibleFloor) {
-                        val startCenter = Offset(offsetX + startNode.x * scale, offsetY + startNode.y * scale)
+                        val startCenter = Offset(offsetX + animatedX * scale, offsetY + animatedY * scale)
+
                         drawNavigationArrow(
                             center = startCenter, angleDeg = arrowAngle,
                             color = secondaryColor, shadowColor = secondaryColor.copy(alpha = 0.35f), arrowScale = arrowScale
@@ -396,7 +441,26 @@ fun MapContent(
             }
         }
 
-        // --- ÚJ: Emeletváltó Gombok (Jobb oldalon) ---
+        /*Card(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Lépések: $stepCount",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { performStep() }) {
+                    Text("Lépés szimulálása")
+                }
+            }
+        }*/
+
         Column(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -421,7 +485,6 @@ fun MapContent(
             }
         }
 
-        // re-center gomb
         FloatingActionButton(
             onClick = { performRecenter() },
             modifier = Modifier
@@ -438,7 +501,6 @@ fun MapContent(
     }
 }
 
-//rajzolas segito fuggvenyek
 private fun DrawScope.drawNavigationArrow(
     center: Offset,
     angleDeg: Float,
@@ -446,24 +508,20 @@ private fun DrawScope.drawNavigationArrow(
     shadowColor: Color,
     arrowScale: Float
 ){
-    val r = 32f * arrowScale //alap sugar meret
+    val r = 32f * arrowScale
     rotate(degrees = angleDeg, pivot = center){
-        //arnyek
         drawCircle(color = shadowColor, radius = r * 1.9f, center = center)
-        //feher keret
         drawCircle(color = Color.White, radius = r * 1.35f, center = center)
 
-        //nyil haromszog(felfele mutat majd forgatja)
         val path = Path().apply {
-            moveTo(center.x, center.y - r * 1.3f) //csucs
-            lineTo(center.x + r, center.y + r * 0.9f) //jobb also
-            lineTo(center.x, center.y + r * 0.3f) //also kozep
-            lineTo(center.x - r, center.y + r * 0.9f) //bal also
+            moveTo(center.x, center.y - r * 1.3f)
+            lineTo(center.x + r, center.y + r * 0.9f)
+            lineTo(center.x, center.y + r * 0.3f)
+            lineTo(center.x - r, center.y + r * 0.9f)
             close()
         }
         drawPath(path = path, color = color)
 
-        //belso kor(pupilla szeru megjelenes)
         drawCircle(
             color = Color.White.copy(alpha = 0.45f),
             radius = r * 0.35f,
@@ -481,7 +539,6 @@ private fun DrawScope.drawPinMarker(
     val r = 28f
     val stemH = r * 1.4f
 
-    //arnyek
     drawCircle(
         color = shadowColor,
         radius = r * 1.5f,
@@ -497,10 +554,9 @@ private fun DrawScope.drawPinMarker(
                 bottom = center.y - stemH
             )
         )
-        //haromszog
         moveTo(center.x - r * 0.55f, center.y - stemH - r * 0.3f)
         lineTo(center.x + r * 0.55f, center.y - stemH - r * 0.3f)
-        lineTo(center.x,             center.y)   // hegy = center
+        lineTo(center.x,             center.y)
         close()
     }
     drawPath(path = pinPath, color = color)
@@ -524,7 +580,6 @@ fun DestinationCard(
     var expanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
-    //szurt lista a kereses alapjan
     val filteredDestinations = remember(searchQuery, destinations) {
         destinations.filter { it.second.contains(searchQuery, ignoreCase = true) }
     }
@@ -532,7 +587,6 @@ fun DestinationCard(
     Surface(
         modifier = modifier
             .fillMaxWidth(0.92f)
-            //kartya meret animalasa
             .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
         shape     = RoundedCornerShape(28.dp),
         color     = MaterialTheme.colorScheme.surface,
@@ -541,11 +595,10 @@ fun DestinationCard(
         Column(modifier = Modifier.fillMaxWidth()) {
 
             if (!expanded) {
-                //osszecsukott allapot
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { expanded = true } //erre nyilik le a kereso
+                        .clickable { expanded = true }
                         .padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -596,13 +649,11 @@ fun DestinationCard(
                     }
                 }
             } else {
-                //kinyitott allapott: keresosav + gyorsgombok + gorgetheto lista
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp, bottom = 8.dp)
                 ) {
-                    // 1. Keresomezo
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -635,8 +686,6 @@ fun DestinationCard(
                         )
                     )
 
-                    // 2. ÚJ: GYORSGOMBOK (Quick Actions)
-                    // Csak akkor mutatjuk, ha nem gépelt még be semmit a felhasználó
                     if (searchQuery.isEmpty()) {
                         LazyRow(
                             modifier = Modifier
@@ -644,7 +693,6 @@ fun DestinationCard(
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Büfé gyorsgomb (n7)
                             val cafeDest = destinations.find { it.first == "n7" }
                             if (cafeDest != null) {
                                 item {
@@ -665,7 +713,6 @@ fun DestinationCard(
                                 }
                             }
 
-                            // Férfi mosdó (n16)
                             val mensWcDest = destinations.find { it.first == "n16" }
                             if (mensWcDest != null) {
                                 item {
@@ -686,7 +733,6 @@ fun DestinationCard(
                                 }
                             }
 
-                            // Női mosdó (n17)
                             val womensWcDest = destinations.find { it.first == "n17" }
                             if (womensWcDest != null) {
                                 item {
@@ -698,7 +744,7 @@ fun DestinationCard(
                                         label = { Text(womensWcDest.second) },
                                         leadingIcon = {
                                             Icon(
-                                                Icons.Default.Wc, // Lehetne külön női ikon is, de a WC ikon egyértelmű
+                                                Icons.Default.Wc,
                                                 contentDescription = null,
                                                 modifier = Modifier.size(AssistChipDefaults.IconSize)
                                             )
@@ -711,11 +757,10 @@ fun DestinationCard(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    // 3. Talalatok listaja
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 280.dp) //ne takarja ki az egesz kepernyot de lehessen gorgetni
+                            .heightIn(max = 280.dp)
                             .padding(horizontal = 8.dp)
                     ) {
                         if (filteredDestinations.isEmpty()) {
@@ -737,9 +782,9 @@ fun DestinationCard(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(16.dp))
                                         .clickable {
-                                            onSelected(dest) //kivalasztas
-                                            expanded = false //bezaras
-                                            searchQuery = "" //kereses torlese
+                                            onSelected(dest)
+                                            expanded = false
+                                            searchQuery = ""
                                         }
                                         .background(
                                             if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -768,5 +813,82 @@ fun DestinationCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun rememberDeviceAzimuth(): Float {
+    val context = LocalContext.current
+    val azimuth = remember { mutableFloatStateOf(0f) }
+
+    DisposableEffect(Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val rotationVectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event?.sensor?.type == Sensor.TYPE_ROTATION_VECTOR) {
+                    val rotationMatrix = FloatArray(9)
+                    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+
+                    val orientationAngles = FloatArray(3)
+                    SensorManager.getOrientation(rotationMatrix, orientationAngles)
+
+                    var azimuthDegrees = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
+                    if (azimuthDegrees < 0) {
+                        azimuthDegrees += 360f
+                    }
+                    azimuth.floatValue = azimuthDegrees
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        sensorManager.registerListener(listener, rotationVectorSensor, SensorManager.SENSOR_DELAY_UI)
+        onDispose { sensorManager.unregisterListener(listener) }
+    }
+    return azimuth.floatValue
+}
+
+@Composable
+fun rememberStepDetector(
+    currentAzimuth: Float,
+    onStepDetected: () -> Unit
+) {
+    val context = LocalContext.current
+    val currentOnStepDetected by rememberUpdatedState(onStepDetected)
+
+    DisposableEffect(Unit) {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+
+        var lastAzimuth = currentAzimuth
+        var lastAzimuthTime = System.currentTimeMillis()
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event?.sensor?.type == Sensor.TYPE_STEP_DETECTOR) {
+                    val currentTime = System.currentTimeMillis()
+
+                    if (currentTime - lastAzimuthTime > 500L) {
+                        lastAzimuth = currentAzimuth
+                        lastAzimuthTime = currentTime
+                    }
+
+                    var azimuthDiff = Math.abs(currentAzimuth - lastAzimuth)
+                    if (azimuthDiff > 180f) azimuthDiff = 360f - azimuthDiff
+
+                    if (azimuthDiff < 15f) {
+                        currentOnStepDetected()
+                    }
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        if (stepSensor != null) {
+            sensorManager.registerListener(listener, stepSensor, SensorManager.SENSOR_DELAY_FASTEST)
+        }
+        onDispose { sensorManager.unregisterListener(listener) }
     }
 }
