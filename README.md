@@ -14,7 +14,7 @@ Egy modern, Android alapú beltéri navigációs alkalmazás, amely valós idej�
 
 ## ✨ Fő Funkciók
 
-* 🚶‍♂️ **Valós idejű lépéskövetés (PDR):** A beépített lépésérzékelő és a forgásvektor (iránytű) kombinálásával az app offline, GPS nélkül is milliméter pontosan követi a mozgást.
+* 🚶‍♂️ **Valós idejű lépéskövetés (PDR):** A beépített lépésérzékelő és a forgásvektor (iránytű) kombinálásával az app offline, GPS nélkül is pontosan követi a mozgást.
 * 🧭 **Directional Map Matching:** Fejlett algoritmus, amely csak akkor regisztrálja a lépést a térképen, ha a felhasználó a kiszámolt útvonal irányába néz.
 * 📷 **Beépített QR Pozicionálás:** Villámgyors kezdőpont-kalibráció az appba integrált Google ML Kit vonalkód-olvasóval.
 * 🧠 **Az Útvonalkeresés:** Optimális útvonaltervezés a megadott csomópontok (Node-ok) és emeletek között.
