@@ -45,39 +45,39 @@ object MapData {
         Node("n23", 161.5f, 278.5f, 2),  // lift
 
         //emeleti folyosok es termek
-        Node("n24", 858.5f, 1791.5f, 2), // folyoso vege
-        Node("n25", 858.5f, 1613.5f, 2), // elagazas
-        Node("n26", 656.5f, 1613.5f, 2), // kisegito node
-        Node("n27", 656.5f, 1654.5f, 2), // nagy targyalo bejarat
-        Node("n28", 537.5f, 1613.5f, 2), // elagazas
-        Node("n29", 331.5f, 1613.5f, 2), // kisegito node
-        Node("n30", 331.5f, 1654.5f, 2), // kis targyalo bejarat
-        Node("n31", 247.5f, 1613.5f, 2), // folyoso vege
-        Node("n32", 247.5f, 1571.5f, 2), // 2. bufe bejarat
-        Node("n33", 537.5f, 1415.5f, 2), // kisegito node
-        Node("n34", 587.5f, 1415.5f, 2), // 5. iroda bejarat
-        Node("n35", 537.5f, 1167.5f, 2), // kisegito node
-        Node("n36", 587.5f, 1167.5f, 2), // 6. iroda bejarat
-        Node("n37", 537.5f, 1030.5f, 2), // elagazas
-        Node("n38", 256.5f, 1030.5f, 2), // folyoso vege
-        Node("n39", 256.5f, 1084.5f, 2), // hr bejarat
-        Node("n40", 256.5f, 980.5f, 2),  // szerver bejarat
-        Node("n41", 537.5f, 742.5f, 2),  // elagazas
-        Node("n42", 819.5f, 742.5f, 2),  // folyoso vege
-        Node("n43", 819.5f, 793.5f, 2),  // piheno/konyha bejarat
-        Node("n44", 819.5f, 692.5f, 2),  // nyomtato allomas bejarat
-        Node("n45", 537.5f, 287.5f, 2),  // elagazas
-        Node("n46", 819.5f, 278.5f, 2),  // folyoso vege
-        Node("n47", 819.5f, 331.5f, 2),  // 3. raktar bejarat
-        Node("n48", 210.5f, 278.5f, 2),  // folyoso vege
-        Node("n49", 210.5f, 493.5f, 2),  // noi mosdo bejarat
-        Node("n50", 537.5f, 68.5f, 2),   // folyoso vege
-        Node("n51", 487.5f, 68.5f, 2),   // vezetoi iroda bejarat
-        Node("n52", 724.5f, 68.5f, 2)    // ferfi mosdo bejarat
+        Node("n24", 858.5f, 1791.5f, 2),
+        Node("n25", 858.5f, 1613.5f, 2),
+        Node("n26", 656.5f, 1613.5f, 2),
+        Node("n27", 656.5f, 1654.5f, 2),
+        Node("n28", 537.5f, 1613.5f, 2),
+        Node("n29", 331.5f, 1613.5f, 2),
+        Node("n30", 331.5f, 1654.5f, 2),
+        Node("n31", 247.5f, 1613.5f, 2),
+        Node("n32", 247.5f, 1571.5f, 2),
+        Node("n33", 537.5f, 1415.5f, 2),
+        Node("n34", 587.5f, 1415.5f, 2),
+        Node("n35", 537.5f, 1167.5f, 2),
+        Node("n36", 587.5f, 1167.5f, 2),
+        Node("n37", 537.5f, 1030.5f, 2),
+        Node("n38", 256.5f, 1030.5f, 2),
+        Node("n39", 256.5f, 1084.5f, 2),
+        Node("n40", 256.5f, 980.5f, 2),
+        Node("n41", 537.5f, 742.5f, 2),
+        Node("n42", 819.5f, 742.5f, 2),
+        Node("n43", 819.5f, 793.5f, 2),
+        Node("n44", 819.5f, 692.5f, 2),
+        Node("n45", 537.5f, 287.5f, 2),
+        Node("n46", 819.5f, 278.5f, 2),
+        Node("n47", 819.5f, 331.5f, 2),
+        Node("n48", 210.5f, 278.5f, 2),
+        Node("n49", 210.5f, 493.5f, 2),
+        Node("n50", 537.5f, 68.5f, 2),
+        Node("n51", 487.5f, 68.5f, 2),
+        Node("n52", 724.5f, 68.5f, 2)
     )
 
     val graph = Graph(nodes).apply {
-        //foldszint elei
+        // foldszint elei
         addBidirectionalEdge("n1", "node_A")
         addBidirectionalEdge("node_A", "n2")
         addBidirectionalEdge("n2", "n3")
@@ -92,7 +92,7 @@ object MapData {
         addBidirectionalEdge("n5", "n6")
         addBidirectionalEdge("n5", "node_H")
 
-        //foldszinti termek bekotese
+        // foldszinti termek bekotese
         addBidirectionalEdge("n7", "node_A")
         addBidirectionalEdge("n8", "node_B")
         addBidirectionalEdge("n9", "node_C")
@@ -105,19 +105,17 @@ object MapData {
         addBidirectionalEdge("n16", "node_H")
         addBidirectionalEdge("n17", "node_H")
 
-        //foldszinti lift es lepcsok bekotese a folyosokra
-        addBidirectionalEdge("node_B", "n18") // Lépcső 1
-        addBidirectionalEdge("n6", "n19")     // Lépcső 2
-        addBidirectionalEdge("node_G", "n20") // Lift
+        // foldszinti lift es lepcsok bekotese a folyosokra
+        addBidirectionalEdge("node_B", "n18", EdgeType.STAIRS)  // Lépcső 1 - folyosóhoz
+        addBidirectionalEdge("n6", "n19", EdgeType.STAIRS)      // Lépcső 2 - folyosóhoz
+        addBidirectionalEdge("node_G", "n20", EdgeType.ELEVATOR) // Lift - folyosóhoz
 
+        // teleportok (emeletek osszekotese)
+        addBidirectionalEdge("n18", "n21", EdgeType.STAIRS)     // Lépcső 1: fsz <-> 2. emelet
+        addBidirectionalEdge("n19", "n22", EdgeType.STAIRS)     // Lépcső 2: fsz <-> 2. emelet
+        addBidirectionalEdge("n20", "n23", EdgeType.ELEVATOR)   // Lift: fsz <-> 2. emelet
 
-        //teleportok(emeletek osszekotese)
-        addBidirectionalEdge("n18", "n21") // Lépcső 1: 1. emelet <-> 2. emelet
-        addBidirectionalEdge("n19", "n22") // Lépcső 2: 1. emelet <-> 2. emelet
-        addBidirectionalEdge("n20", "n23") // Lift: 1. emelet <-> 2. emelet
-
-
-        //2. emelet elei
+        // 2. emelet elei
         addBidirectionalEdge("n21", "n24")
         addBidirectionalEdge("n24", "n25")
         addBidirectionalEdge("n25", "n26")
@@ -143,9 +141,9 @@ object MapData {
         addBidirectionalEdge("n45", "n46")
         addBidirectionalEdge("n45", "n48")
         addBidirectionalEdge("n45", "n50")
-        addBidirectionalEdge("n46", "n22")
+        addBidirectionalEdge("n46", "n22", EdgeType.STAIRS)     // Lépcső 2 emeleti vége
         addBidirectionalEdge("n46", "n47")
-        addBidirectionalEdge("n48", "n23")
+        addBidirectionalEdge("n48", "n23", EdgeType.ELEVATOR)   // Lift emeleti vége
         addBidirectionalEdge("n48", "n49")
         addBidirectionalEdge("n50", "n51")
         addBidirectionalEdge("n50", "n52")

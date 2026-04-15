@@ -17,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -48,7 +49,9 @@ fun QRScreen(
     onQrScanned: (String) -> Unit,
     onToggleDarkMode: () -> Unit,
     currentLanguage: AppLanguage,
-    onLanguageChange: (AppLanguage) -> Unit
+    onLanguageChange: (AppLanguage) -> Unit,
+    isAccessibleMode: Boolean,
+    onAccessibleModeChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -60,7 +63,10 @@ fun QRScreen(
 
     var hasCameraPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
         )
     }
 
@@ -68,9 +74,7 @@ fun QRScreen(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
             hasCameraPermission = granted
-            if (granted) {
-                isScanning = true // Ha megadta, egyből indul is a kamera!
-            }
+            if (granted) isScanning = true
         }
     )
 
@@ -88,7 +92,9 @@ fun QRScreen(
                         }
 
                         val barcodeScanner = BarcodeScanning.getClient(
-                            BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
+                            BarcodeScannerOptions.Builder()
+                                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                                .build()
                         )
 
                         val imageAnalysis = ImageAnalysis.Builder()
@@ -96,9 +102,13 @@ fun QRScreen(
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                             .build()
                             .also { analysis ->
-                                analysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { imageProxy ->
-                                    processImageProxy(barcodeScanner, imageProxy) { scannedValue ->
-                                        // TALÁLAT! Kilépünk a kamerából és átadjuk az adatot.
+                                analysis.setAnalyzer(
+                                    ContextCompat.getMainExecutor(ctx)
+                                ) { imageProxy ->
+                                    processImageProxy(
+                                        barcodeScanner,
+                                        imageProxy
+                                    ) { scannedValue ->
                                         isScanning = false
                                         onQrScanned(scannedValue)
                                     }
@@ -123,7 +133,11 @@ fun QRScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+            )
             Box(
                 modifier = Modifier
                     .size(250.dp)
@@ -138,22 +152,33 @@ fun QRScreen(
                     .align(Alignment.TopStart)
                     .padding(top = 48.dp, start = 24.dp)
                     .size(48.dp),
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                )
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Mégse", tint = MaterialTheme.colorScheme.onSurface)
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Mégse",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
-    }
-    else {
+    } else {
         val infiniteTransition = rememberInfiniteTransition(label = "pulse")
         val pulseScale by infiniteTransition.animateFloat(
             initialValue = 1f, targetValue = 1.06f,
-            animationSpec = infiniteRepeatable(animation = tween(900, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
             label = "pulseScale"
         )
         val pulseAlpha by infiniteTransition.animateFloat(
             initialValue = 0.4f, targetValue = 0.9f,
-            animationSpec = infiniteRepeatable(animation = tween(900, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
             label = "pulseAlpha"
         )
 
@@ -170,7 +195,11 @@ fun QRScreen(
                 )
         ) {
             // Nyelv választó menü
-            Box(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+            ) {
                 FilledTonalIconButton(onClick = { languageMenuExpanded = true }) {
                     Icon(Icons.Default.Language, contentDescription = "Nyelv / Language")
                 }
@@ -184,7 +213,10 @@ fun QRScreen(
                                 Text(
                                     text = language.displayName,
                                     fontWeight = if (currentLanguage == language) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (currentLanguage == language) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    color = if (currentLanguage == language)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurface
                                 )
                             },
                             onClick = {
@@ -209,17 +241,37 @@ fun QRScreen(
                             .scale(pulseScale)
                             .clip(RoundedCornerShape(36.dp))
                             .background(primary.copy(alpha = pulseAlpha * 0.12f))
-                            .border(width = 2.dp, color = primary.copy(alpha = pulseAlpha * 0.5f), shape = RoundedCornerShape(36.dp))
+                            .border(
+                                width = 2.dp,
+                                color = primary.copy(alpha = pulseAlpha * 0.5f),
+                                shape = RoundedCornerShape(36.dp)
+                            )
                     )
                     Box(
                         modifier = Modifier
                             .size(130.dp)
                             .clip(RoundedCornerShape(28.dp))
-                            .background(brush = Brush.radialGradient(colors = listOf(primary.copy(alpha = 0.2f), primary.copy(alpha = 0.08f))))
-                            .border(width = 1.5f.dp, color = primary.copy(alpha = 0.4f), shape = RoundedCornerShape(28.dp)),
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        primary.copy(alpha = 0.2f),
+                                        primary.copy(alpha = 0.08f)
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 1.5f.dp,
+                                color = primary.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(28.dp)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(imageVector = Icons.Default.QrCodeScanner, contentDescription = null, tint = primary, modifier = Modifier.size(60.dp))
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = null,
+                            tint = primary,
+                            modifier = Modifier.size(60.dp)
+                        )
                     }
                 }
 
@@ -244,37 +296,119 @@ fun QRScreen(
                     lineHeight = 22.sp
                 )
 
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                // SCAN GOMB (Itt nyitjuk meg a kamerát!)
+                // Akadálymentesség kapcsoló
+                AccessibleModeToggle(
+                    isAccessibleMode = isAccessibleMode,
+                    onAccessibleModeChange = onAccessibleModeChange,
+                    currentLanguage = currentLanguage
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Scan gomb
                 Button(
                     onClick = {
-                        if (hasCameraPermission) {
-                            isScanning = true
-                        } else {
-                            permissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
+                        if (hasCameraPermission) isScanning = true
+                        else permissionLauncher.launch(Manifest.permission.CAMERA)
                     },
-                    modifier = Modifier.fillMaxWidth(0.72f).height(54.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .height(54.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = primary)
                 ) {
-                    Icon(imageVector = Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Icon(
+                        imageVector = Icons.Default.QrCodeScanner,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(text = Translations.qrScanBtn(currentLanguage), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(
+                        text = Translations.qrScanBtn(currentLanguage),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // DEMO GOMB (Ez továbbra is azonnal bevisz a térképre kódolvasás nélkül)
+                // Demo gomb
                 OutlinedButton(
                     onClick = { onQrScanned("n1") },
-                    modifier = Modifier.fillMaxWidth(0.72f).height(48.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(18.dp)
                 ) {
-                    Text(text = Translations.qrDemoBtn(currentLanguage), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = Translations.qrDemoBtn(currentLanguage),
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun AccessibleModeToggle(
+    isAccessibleMode: Boolean,
+    onAccessibleModeChange: (Boolean) -> Unit,
+    currentLanguage: AppLanguage,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (isAccessibleMode)
+        MaterialTheme.colorScheme.primaryContainer
+    else
+        MaterialTheme.colorScheme.surfaceVariant
+
+    val contentColor = if (isAccessibleMode)
+        MaterialTheme.colorScheme.onPrimaryContainer
+    else
+        MaterialTheme.colorScheme.onSurfaceVariant
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth(0.72f),
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        tonalElevation = if (isAccessibleMode) 2.dp else 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Accessibility,
+                contentDescription = null,
+                tint = if (isAccessibleMode) MaterialTheme.colorScheme.primary else contentColor,
+                modifier = Modifier.size(22.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = Translations.accessibleLabel(currentLanguage),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = contentColor
+                )
+                Text(
+                    text = Translations.accessibleDescription(currentLanguage),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor.copy(alpha = 0.75f)
+                )
+            }
+            Switch(
+                checked = isAccessibleMode,
+                onCheckedChange = onAccessibleModeChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            )
         }
     }
 }

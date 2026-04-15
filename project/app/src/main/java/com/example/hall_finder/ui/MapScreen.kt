@@ -49,6 +49,7 @@ import com.example.hall_finder.model.MapData
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocationOn
@@ -91,9 +92,6 @@ import android.hardware.SensorManager
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberUpdatedState
 
@@ -104,7 +102,9 @@ fun MapScreen(
     isDarkMode: Boolean,
     onToggleDarkMode: () -> Unit,
     currentLanguage: AppLanguage,
-    onBackToMenu: () -> Unit
+    onBackToMenu: () -> Unit,
+    isAccessibleMode: Boolean,
+    onAccessibleModeChange: (Boolean) -> Unit
 ) {
     val destinations = remember(currentLanguage) {
         Translations.getDestinations(currentLanguage)
@@ -117,11 +117,12 @@ fun MapScreen(
 
     val pathState = remember { mutableStateOf<List<String>>(emptyList()) }
 
-    LaunchedEffect(startNodeId, selectedDestinationId.value) {
+    LaunchedEffect(startNodeId, selectedDestinationId.value, isAccessibleMode) {
         val aStar = AStar(MapData.graph, MapData.nodes)
         pathState.value = aStar.findPath(
             startNodeId,
-            selectedDestinationId.value
+            selectedDestinationId.value,
+            accessibleOnly = isAccessibleMode
         )
     }
 
@@ -141,6 +142,8 @@ fun MapScreen(
             onToggleDarkMode = onToggleDarkMode,
             isDarkMode = isDarkMode,
             currentLanguage = currentLanguage,
+            isAccessibleMode = isAccessibleMode,
+            onAccessibleModeChange = onAccessibleModeChange,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 52.dp)
@@ -174,7 +177,7 @@ fun MapContent(
     val figmaWidth = 1080f
     val figmaHeight = 1920f
 
-    val infiniteTransition = rememberInfiniteTransition(label="route")
+    val infiniteTransition = rememberInfiniteTransition(label = "route")
     val dashPhase by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 60f,
@@ -186,14 +189,14 @@ fun MapContent(
     )
 
     val arrowScale by animateFloatAsState(
-        targetValue = if(path.isNotEmpty()) 1f else 0f,
+        targetValue = if (path.isNotEmpty()) 1f else 0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "arrowScale"
     )
 
-    val primaryColor   = MaterialTheme.colorScheme.primary
+    val primaryColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.secondary
-    val tertiaryColor  = MaterialTheme.colorScheme.tertiary
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -218,7 +221,9 @@ fun MapContent(
         animationSpec = tween(durationMillis = 300, easing = LinearEasing), label = "animY"
     )
 
-    var targetPathIndex by remember(startNodeId, path) { mutableIntStateOf(if (path.size > 1) 1 else 0) }
+    var targetPathIndex by remember(startNodeId, path) {
+        mutableIntStateOf(if (path.size > 1) 1 else 0)
+    }
     val stepSizePixels = 25f
     val directionThreshold = 45f
 
@@ -228,13 +233,12 @@ fun MapContent(
             val dx = targetNode.x - currentX
             val dy = targetNode.y - currentY
 
-            var pathAngle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+            var pathAngle =
+                Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
             pathAngle = (pathAngle + 360f) % 360f
 
             var angleDiff = Math.abs(arrowAngle - pathAngle)
-            if (angleDiff > 180f) {
-                angleDiff = 360f - angleDiff
-            }
+            if (angleDiff > 180f) angleDiff = 360f - angleDiff
 
             if (angleDiff <= directionThreshold) {
                 stepCount++
@@ -243,9 +247,7 @@ fun MapContent(
                 if (distanceToTarget <= stepSizePixels) {
                     currentX = targetNode.x
                     currentY = targetNode.y
-                    if (targetPathIndex < path.size - 1) {
-                        targetPathIndex++
-                    }
+                    if (targetPathIndex < path.size - 1) targetPathIndex++
                 } else {
                     val ratio = stepSizePixels / distanceToTarget
                     currentX += dx * ratio
@@ -273,7 +275,7 @@ fun MapContent(
         val offsetX: Float
         val offsetY: Float
 
-        if(screenAspect > imageAspect){
+        if (screenAspect > imageAspect) {
             scale = screenHeight / figmaHeight
             offsetX = (screenWidth - figmaWidth * scale) / 2f
             offsetY = 0f
@@ -292,7 +294,6 @@ fun MapContent(
         val panY = remember { Animatable(0f) }
 
         var isTrackingMode by remember { mutableStateOf(true) }
-
         var isInitialized by remember { mutableStateOf(false) }
         var lastStartNode by remember { mutableStateOf(startNodeId) }
 
@@ -317,7 +318,8 @@ fun MapContent(
             val currentRot = mapRotation.value
             val targetRotRaw = -arrowAngle
             val diff = (targetRotRaw - currentRot) % 360f
-            val normalizedDiff = if (diff > 180f) diff - 360f else if (diff < -180f) diff + 360f else diff
+            val normalizedDiff =
+                if (diff > 180f) diff - 360f else if (diff < -180f) diff + 360f else diff
             val finalTargetRot = currentRot + normalizedDiff
 
             coroutineScope.launch {
@@ -369,7 +371,8 @@ fun MapContent(
 
                 val currentRot = mapRotation.value
                 val diff = (-arrowAngle - currentRot) % 360f
-                val normalizedDiff = if (diff > 180f) diff - 360f else if (diff < -180f) diff + 360f else diff
+                val normalizedDiff =
+                    if (diff > 180f) diff - 360f else if (diff < -180f) diff + 360f else diff
                 val finalTargetRot = currentRot + normalizedDiff
 
                 panX.snapTo(targetPanX)
@@ -452,19 +455,18 @@ fun MapContent(
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     if (path.isNotEmpty() && targetPathIndex < path.size) {
                         val targetNode = MapData.nodes.first { it.id == path[targetPathIndex] }
-                        val prevNodeId = if (targetPathIndex > 0) path[targetPathIndex - 1] else path[0]
+                        val prevNodeId =
+                            if (targetPathIndex > 0) path[targetPathIndex - 1] else path[0]
                         val prevNode = MapData.nodes.first { it.id == prevNodeId }
 
                         if (prevNode.floor == currentVisibleFloor && targetNode.floor == currentVisibleFloor) {
-                            val start = Offset(offsetX + animatedX * scale, offsetY + animatedY * scale)
-                            val end = Offset(offsetX + targetNode.x * scale, offsetY + targetNode.y * scale)
-
-                            drawLine(color = primaryColor.copy(alpha = 0.18f), start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round)
-                            drawLine(color = primaryColor.copy(alpha = 0.55f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round)
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.75f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round,
-                                pathEffect = PathEffect.dashPathEffect(intervals = floatArrayOf(20f, 40f), phase = -dashPhase)
+                            val start =
+                                Offset(offsetX + animatedX * scale, offsetY + animatedY * scale)
+                            val end = Offset(
+                                offsetX + targetNode.x * scale,
+                                offsetY + targetNode.y * scale
                             )
+                            drawRouteLine(start, end, primaryColor, dashPhase)
                         }
 
                         for (i in targetPathIndex until path.size - 1) {
@@ -472,15 +474,10 @@ fun MapContent(
                             val to = MapData.nodes.first { it.id == path[i + 1] }
 
                             if (from.floor == currentVisibleFloor && to.floor == currentVisibleFloor) {
-                                val start = Offset(offsetX + from.x * scale, offsetY + from.y * scale)
-                                val end   = Offset(offsetX + to.x   * scale, offsetY + to.y   * scale)
-
-                                drawLine(color = primaryColor.copy(alpha = 0.18f), start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round)
-                                drawLine(color = primaryColor.copy(alpha = 0.55f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round)
-                                drawLine(
-                                    color = Color.White.copy(alpha = 0.75f), start = start, end = end, strokeWidth = 14f, cap = StrokeCap.Round,
-                                    pathEffect = PathEffect.dashPathEffect(intervals = floatArrayOf(20f, 40f), phase = -dashPhase)
-                                )
+                                val start =
+                                    Offset(offsetX + from.x * scale, offsetY + from.y * scale)
+                                val end = Offset(offsetX + to.x * scale, offsetY + to.y * scale)
+                                drawRouteLine(start, end, primaryColor, dashPhase)
                             }
                         }
                     }
@@ -488,17 +485,25 @@ fun MapContent(
                     val goalNode = MapData.nodes.first { it.id == goalNodeId }
                     if (goalNode.floor == currentVisibleFloor) {
                         drawPinMarker(
-                            center = Offset(offsetX + goalNode.x * scale, offsetY + goalNode.y * scale),
-                            color  = tertiaryColor, shadowColor = tertiaryColor.copy(alpha = 0.3f), scale  = scale
+                            center = Offset(
+                                offsetX + goalNode.x * scale,
+                                offsetY + goalNode.y * scale
+                            ),
+                            color = tertiaryColor,
+                            shadowColor = tertiaryColor.copy(alpha = 0.3f),
+                            scale = scale
                         )
                     }
 
                     if (startNode.floor == currentVisibleFloor) {
-                        val startCenter = Offset(offsetX + animatedX * scale, offsetY + animatedY * scale)
-
+                        val startCenter =
+                            Offset(offsetX + animatedX * scale, offsetY + animatedY * scale)
                         drawNavigationArrow(
-                            center = startCenter, angleDeg = arrowAngle,
-                            color = secondaryColor, shadowColor = secondaryColor.copy(alpha = 0.35f), arrowScale = arrowScale
+                            center = startCenter,
+                            angleDeg = arrowAngle,
+                            color = secondaryColor,
+                            shadowColor = secondaryColor.copy(alpha = 0.35f),
+                            arrowScale = arrowScale
                         )
                     }
                 }
@@ -514,18 +519,30 @@ fun MapContent(
             FilledTonalIconButton(
                 onClick = { currentVisibleFloor = 2 },
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = if (currentVisibleFloor == 2) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = if (currentVisibleFloor == 2)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
-                Text("2", fontWeight = if (currentVisibleFloor == 2) FontWeight.Bold else FontWeight.Normal)
+                Text(
+                    "2",
+                    fontWeight = if (currentVisibleFloor == 2) FontWeight.Bold else FontWeight.Normal
+                )
             }
             FilledTonalIconButton(
                 onClick = { currentVisibleFloor = 1 },
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = if (currentVisibleFloor == 1) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = if (currentVisibleFloor == 1)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
-                Text("1", fontWeight = if (currentVisibleFloor == 1) FontWeight.Bold else FontWeight.Normal)
+                Text(
+                    "1",
+                    fontWeight = if (currentVisibleFloor == 1) FontWeight.Bold else FontWeight.Normal
+                )
             }
         }
 
@@ -545,15 +562,43 @@ fun MapContent(
     }
 }
 
+// Segédfüggvény az útvonalvonal rajzolásához (kiemelve a duplikáció elkerülése érdekében)
+private fun DrawScope.drawRouteLine(
+    start: Offset,
+    end: Offset,
+    primaryColor: Color,
+    dashPhase: Float
+) {
+    drawLine(
+        color = primaryColor.copy(alpha = 0.18f),
+        start = start, end = end,
+        strokeWidth = 36f, cap = StrokeCap.Round
+    )
+    drawLine(
+        color = primaryColor.copy(alpha = 0.55f),
+        start = start, end = end,
+        strokeWidth = 14f, cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color.White.copy(alpha = 0.75f),
+        start = start, end = end,
+        strokeWidth = 14f, cap = StrokeCap.Round,
+        pathEffect = PathEffect.dashPathEffect(
+            intervals = floatArrayOf(20f, 40f),
+            phase = -dashPhase
+        )
+    )
+}
+
 private fun DrawScope.drawNavigationArrow(
     center: Offset,
     angleDeg: Float,
     color: Color,
     shadowColor: Color,
     arrowScale: Float
-){
+) {
     val r = 32f * arrowScale
-    rotate(degrees = angleDeg, pivot = center){
+    rotate(degrees = angleDeg, pivot = center) {
         drawCircle(color = shadowColor, radius = r * 1.9f, center = center)
         drawCircle(color = Color.White, radius = r * 1.35f, center = center)
 
@@ -579,7 +624,7 @@ private fun DrawScope.drawPinMarker(
     color: Color,
     shadowColor: Color,
     scale: Float
-){
+) {
     val r = 28f
     val stemH = r * 1.4f
 
@@ -589,7 +634,7 @@ private fun DrawScope.drawPinMarker(
         center = Offset(center.x, center.y - stemH - r * 0.5f)
     )
 
-    val pinPath = Path().apply{
+    val pinPath = Path().apply {
         addOval(
             androidx.compose.ui.geometry.Rect(
                 left = center.x - r,
@@ -600,7 +645,7 @@ private fun DrawScope.drawPinMarker(
         )
         moveTo(center.x - r * 0.55f, center.y - stemH - r * 0.3f)
         lineTo(center.x + r * 0.55f, center.y - stemH - r * 0.3f)
-        lineTo(center.x,             center.y)
+        lineTo(center.x, center.y)
         close()
     }
     drawPath(path = pinPath, color = color)
@@ -619,6 +664,8 @@ fun DestinationCard(
     onToggleDarkMode: () -> Unit,
     isDarkMode: Boolean,
     currentLanguage: AppLanguage,
+    isAccessibleMode: Boolean,
+    onAccessibleModeChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -631,14 +678,20 @@ fun DestinationCard(
     Surface(
         modifier = modifier
             .fillMaxWidth(0.92f)
-            .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
-        shape     = RoundedCornerShape(28.dp),
-        color     = MaterialTheme.colorScheme.surface,
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
         tonalElevation = 4.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
 
             if (!expanded) {
+                // --- Összesített fejléc sor ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -656,7 +709,7 @@ fun DestinationCard(
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
-                            tint   = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -665,21 +718,46 @@ fun DestinationCard(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text  = Translations.mapDestination(currentLanguage),
+                            text = Translations.mapDestination(currentLanguage),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text     = selected.second,
-                            style    = MaterialTheme.typography.titleMedium,
+                            text = selected.second,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = SemiBold
                         )
                     }
 
+                    // Akadálymentesség gyorsgomb
+                    FilledIconButton(
+                        onClick = { onAccessibleModeChange(!isAccessibleMode) },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = if (isAccessibleMode)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Accessibility,
+                            contentDescription = Translations.mapAccessibleToggle(currentLanguage),
+                            tint = if (isAccessibleMode)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Sötét mód gomb
                     FilledIconButton(
                         onClick = onToggleDarkMode,
-                        colors  = IconButtonDefaults.filledIconButtonColors(
+                        colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer
                         ),
                         modifier = Modifier.size(40.dp)
@@ -687,11 +765,12 @@ fun DestinationCard(
                         Icon(
                             imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
                             contentDescription = null,
-                            tint     = MaterialTheme.colorScheme.onSecondaryContainer,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                 }
+
             } else {
                 Column(
                     modifier = Modifier
@@ -831,8 +910,10 @@ fun DestinationCard(
                                             searchQuery = ""
                                         }
                                         .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                            else Color.Transparent
+                                            if (isSelected)
+                                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                            else
+                                                Color.Transparent
                                         )
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -840,14 +921,20 @@ fun DestinationCard(
                                     Icon(
                                         imageVector = Icons.Default.LocationOn,
                                         contentDescription = null,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (isSelected)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Text(
                                         text = dest.second,
                                         style = MaterialTheme.typography.bodyLarge,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                        color = if (isSelected)
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        else
+                                            MaterialTheme.colorScheme.onSurface,
                                         fontWeight = if (isSelected) SemiBold else FontWeight.Normal
                                     )
                                 }
@@ -878,22 +965,27 @@ fun rememberDeviceAzimuth(): Float {
                     val orientationAngles = FloatArray(3)
                     SensorManager.getOrientation(rotationMatrix, orientationAngles)
 
-                    var currentAzimuth = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
+                    var currentAzimuth =
+                        Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
                     if (currentAzimuth < 0) currentAzimuth += 360f
 
                     val oldAzimuth = azimuth.floatValue
                     var diff = currentAzimuth - oldAzimuth
-
                     if (diff > 180f) diff -= 360f
                     if (diff < -180f) diff += 360f
 
                     azimuth.floatValue = (oldAzimuth + diff * 0.1f + 360f) % 360f
                 }
             }
+
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
 
-        sensorManager.registerListener(listener, rotationVectorSensor, SensorManager.SENSOR_DELAY_UI)
+        sensorManager.registerListener(
+            listener,
+            rotationVectorSensor,
+            SensorManager.SENSOR_DELAY_UI
+        )
         onDispose { sensorManager.unregisterListener(listener) }
     }
     return azimuth.floatValue
@@ -918,7 +1010,6 @@ fun rememberStepDetector(
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event?.sensor?.type == Sensor.TYPE_STEP_DETECTOR) {
                     val currentTime = System.currentTimeMillis()
-
                     if (currentTime - lastAzimuthTime > 500L) {
                         lastAzimuth = currentAzimuth
                         lastAzimuthTime = currentTime
@@ -932,11 +1023,16 @@ fun rememberStepDetector(
                     }
                 }
             }
+
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
 
         if (stepSensor != null) {
-            sensorManager.registerListener(listener, stepSensor, SensorManager.SENSOR_DELAY_FASTEST)
+            sensorManager.registerListener(
+                listener,
+                stepSensor,
+                SensorManager.SENSOR_DELAY_FASTEST
+            )
         }
         onDispose { sensorManager.unregisterListener(listener) }
     }

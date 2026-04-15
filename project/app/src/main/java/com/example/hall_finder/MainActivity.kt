@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,7 +17,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        //immersive mode
         val windowInsetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
         windowInsetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
@@ -27,9 +25,10 @@ class MainActivity : ComponentActivity() {
             var appState by remember { mutableStateOf<AppState>(AppState.WaitingForQR) }
             var darkMode by remember { mutableStateOf(false) }
             var currentLanguage by remember { mutableStateOf(AppLanguage.HU) }
+            var isAccessibleMode by remember { mutableStateOf(false) }
 
             Hall_finderTheme(darkTheme = darkMode) {
-                when (val state = appState){
+                when (val state = appState) {
                     is AppState.WaitingForQR -> {
                         QRScreen(
                             onQrScanned = { scannedNodeId ->
@@ -37,7 +36,9 @@ class MainActivity : ComponentActivity() {
                             },
                             onToggleDarkMode = { darkMode = !darkMode },
                             currentLanguage = currentLanguage,
-                            onLanguageChange = { newLanguage -> currentLanguage = newLanguage }
+                            onLanguageChange = { newLanguage -> currentLanguage = newLanguage },
+                            isAccessibleMode = isAccessibleMode,
+                            onAccessibleModeChange = { isAccessibleMode = it }
                         )
                     }
                     is AppState.MapLoaded -> {
@@ -46,9 +47,9 @@ class MainActivity : ComponentActivity() {
                             isDarkMode = darkMode,
                             onToggleDarkMode = { darkMode = !darkMode },
                             currentLanguage = currentLanguage,
-                            onBackToMenu = {
-                                appState = AppState.WaitingForQR
-                            }
+                            onBackToMenu = { appState = AppState.WaitingForQR },
+                            isAccessibleMode = isAccessibleMode,
+                            onAccessibleModeChange = { isAccessibleMode = it }
                         )
                     }
                 }
