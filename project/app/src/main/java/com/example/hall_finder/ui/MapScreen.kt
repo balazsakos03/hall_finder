@@ -314,7 +314,7 @@ fun MapContent(
                     translationX = panX.value, translationY = panY.value, rotationZ = mapRotation.value
                 )
             ) {
-                // Alaptérkép
+                //alapterkep
                 val mapRes = when (currentVisibleFloor) {
                     1 -> when (currentLanguage) {
                         AppLanguage.HU -> if (isDarkMode) R.drawable.map_vector_lvl1_dark else R.drawable.map_vector_lvl1
@@ -329,7 +329,7 @@ fun MapContent(
                 Image(painter = painterResource(mapRes), contentDescription = null,
                     contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
 
-                // Útvonalvonalak
+                //utvonalak
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     if (path.isNotEmpty() && targetPathIndex < path.size) {
                         val targetNode = MapData.nodes.first { it.id == path[targetPathIndex] }
@@ -349,30 +349,30 @@ fun MapContent(
                     }
                 }
 
-                // Lépcső ikonok
+                //lepcso ikonok
                 MapData.nodes.filter { it.id in STAIR_NODE_IDS && it.floor == currentVisibleFloor }.forEach { node ->
                     NodeIcon(node, offsetX, offsetY, scale, Icons.Default.Stairs,
                         tint    = if (isDarkMode) Color(0xFFAAAAAA) else Color(0xFF757575),
                         bgColor = if (isDarkMode) Color(0xFF2A2A2A) else Color(0xFFF0F0F0))
                 }
 
-                // Lift ikonok
+                //lift ikonok
                 MapData.nodes.filter { it.id in ELEVATOR_NODE_IDS && it.floor == currentVisibleFloor }.forEach { node ->
                     NodeIcon(node, offsetX, offsetY, scale, Icons.Default.Elevator,
                         tint    = MaterialTheme.colorScheme.primary,
                         bgColor = MaterialTheme.colorScheme.primaryContainer)
                 }
 
-                // Cél pin
+                //cel pin
                 val goalNode = MapData.nodes.first { it.id == goalNodeId }
                 if (goalNode.floor == currentVisibleFloor) {
                     PinMarker(goalNode, offsetX, offsetY, scale, tertiaryColor)
                 }
 
-                // Navigációs nyíl
+                //navigacios nyil
                 if (startNode.floor == currentVisibleFloor) {
-                    val sizeDp = 40.dp          // kör mérete (kisebb)
-                    val iconDp = 34.dp          // nyilacska mérete (nagyobb)
+                    val sizeDp = 40.dp
+                    val iconDp = 34.dp
                     val sizePx = with(density) { sizeDp.toPx() }
                     Box(
                         modifier = Modifier
@@ -390,7 +390,7 @@ fun MapContent(
             }
         }
 
-        // Emeletváltó
+        //emeletvalto
         Column(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -406,7 +406,7 @@ fun MapContent(
             ) { Text("1", fontWeight = if (currentVisibleFloor == 1) FontWeight.Bold else FontWeight.Normal) }
         }
 
-        // Recentre gomb
+        //recentre
         FloatingActionButton(
             onClick = { performRecenter() },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 48.dp),
@@ -418,7 +418,7 @@ fun MapContent(
     }
 }
 
-// ── Segéd Composable-ök ──────────────────────────────────────────────────────
+// ── seged Composable ──────────────────────────────────────────────────────
 
 @Composable
 private fun NodeIcon(
@@ -455,7 +455,7 @@ private fun PinMarker(node: Node, offsetX: Float, offsetY: Float, scale: Float, 
     }
 }
 
-// ── Canvas segédfüggvény ─────────────────────────────────────────────────────
+// ── Canvas segedfuggveny ─────────────────────────────────────────────────────
 
 private fun DrawScope.drawRouteLine(start: Offset, end: Offset, primaryColor: Color, dashPhase: Float) {
     drawLine(color = primaryColor.copy(alpha = 0.18f), start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round)
@@ -509,7 +509,7 @@ fun DestinationCard(
                         Spacer(Modifier.height(2.dp))
                         Text(selected.second, style = MaterialTheme.typography.titleMedium, fontWeight = SemiBold)
                     }
-                    // Akadálymentesség gomb
+                    //akadalymentesseg gomb
                     FilledIconButton(
                         onClick = { onAccessibleModeChange(!isAccessibleMode) },
                         colors = IconButtonDefaults.filledIconButtonColors(
@@ -521,7 +521,7 @@ fun DestinationCard(
                             modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.width(8.dp))
-                    // Sötét mód gomb
+                    //sotet mod gomb
                     FilledIconButton(
                         onClick = onToggleDarkMode,
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -596,7 +596,7 @@ fun DestinationCard(
     }
 }
 
-// ── Szenzorok ────────────────────────────────────────────────────────────────
+// ── szenzorok ────────────────────────────────────────────────────────────────
 
 @Composable
 fun rememberDeviceAzimuth(): Float {
