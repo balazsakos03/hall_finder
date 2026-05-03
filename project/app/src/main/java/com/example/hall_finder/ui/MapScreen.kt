@@ -73,6 +73,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -103,6 +104,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.hall_finder.R
+import com.example.hall_finder.checkpoint.CheckpointManager
 import com.example.hall_finder.graph.AStar
 import com.example.hall_finder.model.AppLanguage
 import com.example.hall_finder.model.MapData
@@ -125,6 +127,14 @@ fun MapScreen(
     isAccessibleMode: Boolean,
     onAccessibleModeChange: (Boolean) -> Unit
 ) {
+    val context = LocalContext.current
+
+    // BLE scan indítása/leállítása
+    DisposableEffect(Unit) {
+        CheckpointManager.startScanning(context)
+        onDispose { CheckpointManager.stopScanning() }
+    }
+
     val destinations = remember(currentLanguage) {
         Translations.getDestinations(currentLanguage)
     }
@@ -200,6 +210,38 @@ fun MapContent(
     val animatedY by animateFloatAsState(currentY, tween(300, easing = LinearEasing), label = "animY")
 
     var targetPathIndex by remember(startNodeId, path) { mutableIntStateOf(if (path.size > 1) 1 else 0) }
+
+    // Checkpoint snap figyelése
+    val lastCheckpoint by CheckpointManager.lastCheckpoint.collectAsState()
+    var lastSnapNodeId by remember { mutableStateOf<String?>(null) }
+    var showSnapEffect by remember { mutableStateOf(false) }
+
+    LaunchedEffect(lastCheckpoint) {
+        val checkpoint = lastCheckpoint ?: return@LaunchedEffect
+        // Ne snappeljen újra ugyanarra a checkpointra egymás után
+        if (checkpoint.nodeId == lastSnapNodeId) return@LaunchedEffect
+
+        val checkpointNode = MapData.nodes.firstOrNull { it.id == checkpoint.nodeId } ?: return@LaunchedEffect
+
+        // Snap: pozíció átugrik a checkpoint node-ra
+        currentX = checkpointNode.x
+        currentY = checkpointNode.y
+        lastSnapNodeId = checkpoint.nodeId
+
+        // Ha a path tartalmazza ezt a node-t, frissítjük a targetPathIndex-et
+        val nodeIndexInPath = path.indexOf(checkpoint.nodeId)
+        if (nodeIndexInPath >= 0 && nodeIndexInPath < path.size - 1) {
+            targetPathIndex = nodeIndexInPath + 1
+        }
+
+        // Snap vizuális visszajelzés
+        showSnapEffect = true
+        kotlinx.coroutines.delay(1500)
+        showSnapEffect = false
+
+        CheckpointManager.resetLastCheckpoint()
+        lastSnapNodeId = null // reset hogy ugyanoda is snapelhessen legközelebb
+    }
 
     val performStep = {
         if (path.isNotEmpty() && targetPathIndex < path.size) {
@@ -314,7 +356,6 @@ fun MapContent(
                     translationX = panX.value, translationY = panY.value, rotationZ = mapRotation.value
                 )
             ) {
-                //alapterkep
                 val mapRes = when (currentVisibleFloor) {
                     1 -> when (currentLanguage) {
                         AppLanguage.HU -> if (isDarkMode) R.drawable.map_vector_lvl1_dark else R.drawable.map_vector_lvl1
@@ -329,7 +370,6 @@ fun MapContent(
                 Image(painter = painterResource(mapRes), contentDescription = null,
                     contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
 
-                //utvonalak
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     if (path.isNotEmpty() && targetPathIndex < path.size) {
                         val targetNode = MapData.nodes.first { it.id == path[targetPathIndex] }
@@ -347,29 +387,47 @@ fun MapContent(
                             }
                         }
                     }
+
+                    // Checkpoint snap vizuális visszajelzés - pulzáló kör
+                    if (showSnapEffect) {
+                        val snapNode = MapData.nodes.firstOrNull { it.id == lastSnapNodeId }
+                            ?: MapData.nodes.first { it.id == startNodeId }
+                        val snapX = offsetX + snapNode.x * scale
+                        val snapY = offsetY + snapNode.y * scale
+                        drawCircle(
+                            color = primaryColor.copy(alpha = 0.3f),
+                            radius = 60f,
+                            center = Offset(snapX, snapY)
+                        )
+                        drawCircle(
+                            color = primaryColor.copy(alpha = 0.6f),
+                            radius = 30f,
+                            center = Offset(snapX, snapY)
+                        )
+                    }
                 }
 
-                //lepcso ikonok
+                // Lépcső ikonok
                 MapData.nodes.filter { it.id in STAIR_NODE_IDS && it.floor == currentVisibleFloor }.forEach { node ->
                     NodeIcon(node, offsetX, offsetY, scale, Icons.Default.Stairs,
                         tint    = if (isDarkMode) Color(0xFFAAAAAA) else Color(0xFF757575),
                         bgColor = if (isDarkMode) Color(0xFF2A2A2A) else Color(0xFFF0F0F0))
                 }
 
-                //lift ikonok
+                // Lift ikonok
                 MapData.nodes.filter { it.id in ELEVATOR_NODE_IDS && it.floor == currentVisibleFloor }.forEach { node ->
                     NodeIcon(node, offsetX, offsetY, scale, Icons.Default.Elevator,
                         tint    = MaterialTheme.colorScheme.primary,
                         bgColor = MaterialTheme.colorScheme.primaryContainer)
                 }
 
-                //cel pin
+                // Cél pin
                 val goalNode = MapData.nodes.first { it.id == goalNodeId }
                 if (goalNode.floor == currentVisibleFloor) {
                     PinMarker(goalNode, offsetX, offsetY, scale, tertiaryColor)
                 }
 
-                //navigacios nyil
+                // Navigációs nyíl
                 if (startNode.floor == currentVisibleFloor) {
                     val sizeDp = 40.dp
                     val iconDp = 34.dp
@@ -390,7 +448,6 @@ fun MapContent(
             }
         }
 
-        //emeletvalto
         Column(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -399,14 +456,12 @@ fun MapContent(
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
                     containerColor = if (currentVisibleFloor == 2) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
             ) { Text("2", fontWeight = if (currentVisibleFloor == 2) FontWeight.Bold else FontWeight.Normal) }
-
             FilledTonalIconButton(onClick = { currentVisibleFloor = 1 },
                 colors = IconButtonDefaults.filledTonalIconButtonColors(
                     containerColor = if (currentVisibleFloor == 1) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
             ) { Text("1", fontWeight = if (currentVisibleFloor == 1) FontWeight.Bold else FontWeight.Normal) }
         }
 
-        //recentre
         FloatingActionButton(
             onClick = { performRecenter() },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 48.dp),
@@ -418,7 +473,7 @@ fun MapContent(
     }
 }
 
-// ── seged Composable ──────────────────────────────────────────────────────
+// ── Segéd Composable-ök ──────────────────────────────────────────────────────
 
 @Composable
 private fun NodeIcon(
@@ -454,8 +509,6 @@ private fun PinMarker(node: Node, offsetX: Float, offsetY: Float, scale: Float, 
         Icon(Icons.Default.LocationOn, contentDescription = null, tint = color, modifier = Modifier.fillMaxSize())
     }
 }
-
-// ── Canvas segedfuggveny ─────────────────────────────────────────────────────
 
 private fun DrawScope.drawRouteLine(start: Offset, end: Offset, primaryColor: Color, dashPhase: Float) {
     drawLine(color = primaryColor.copy(alpha = 0.18f), start = start, end = end, strokeWidth = 36f, cap = StrokeCap.Round)
@@ -509,7 +562,6 @@ fun DestinationCard(
                         Spacer(Modifier.height(2.dp))
                         Text(selected.second, style = MaterialTheme.typography.titleMedium, fontWeight = SemiBold)
                     }
-                    //akadalymentesseg gomb
                     FilledIconButton(
                         onClick = { onAccessibleModeChange(!isAccessibleMode) },
                         colors = IconButtonDefaults.filledIconButtonColors(
@@ -521,7 +573,6 @@ fun DestinationCard(
                             modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.width(8.dp))
-                    //sotet mod gomb
                     FilledIconButton(
                         onClick = onToggleDarkMode,
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -596,7 +647,7 @@ fun DestinationCard(
     }
 }
 
-// ── szenzorok ────────────────────────────────────────────────────────────────
+// ── Szenzorok ────────────────────────────────────────────────────────────────
 
 @Composable
 fun rememberDeviceAzimuth(): Float {
