@@ -8,8 +8,8 @@ Android alapú beltéri navigációs alkalmazás, amely valós idejű szenzorfú
 
 <div align="center">
   <img src="res/screenshots/qr_screen.jpg" width="250">
-  <img src="res/screenshots/light_mode.jpg" width="250">
-  <img src="res/screenshots/dark_mode.jpg" width="250">
+  <img src="res/screenshots/light_mode.png" width="250">
+  <img src="res/screenshots/dark_mode.png" width="250">
 </div>
 
 ## Funkciók
