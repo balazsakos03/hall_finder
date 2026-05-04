@@ -7,7 +7,7 @@ Android alapú beltéri navigációs alkalmazás, amely valós idejű szenzorfú
 ![Compose](https://img.shields.io/badge/UI-Jetpack_Compose-4285F4?logo=jetpackcompose&logoColor=white)
 
 <div align="center">
-  <img src="res/screenshots/qr_screen.jpg" width="250">
+  <img src="res/screenshots/qr_screen.png" width="250">
   <img src="res/screenshots/light_mode.png" width="250">
   <img src="res/screenshots/dark_mode.png" width="250">
 </div>
