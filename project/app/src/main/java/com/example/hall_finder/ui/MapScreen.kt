@@ -16,6 +16,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.filled.Straight
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarOutline
+import com.example.hall_finder.favorites.FavoritesManager
 import androidx.compose.material.icons.filled.TurnLeft
 import androidx.compose.material.icons.filled.TurnRight
 import androidx.compose.material.icons.filled.TurnSlightLeft
@@ -199,13 +202,13 @@ fun MapScreen(
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 52.dp)
         )
 
-        // Fordulási panel - jobb oldalon, a DestinationCard alatt
+        // Fordulási panel - bal oldalon, a QR gomb felett, fix pozícióban
         if (pathState.value.isNotEmpty()) {
             TurnPanel(
                 direction = currentTurnDirection,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 160.dp, end = 24.dp)
+                    .align(Alignment.BottomStart)
+                    .padding(start = 24.dp, bottom = 120.dp)
             )
         }
 
@@ -685,10 +688,17 @@ fun DestinationCard(
     estimatedSeconds: Int = 0,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var expanded    by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val filteredDestinations = remember(searchQuery, destinations) {
         destinations.filter { it.second.contains(searchQuery, ignoreCase = true) }
+    }
+
+    // Kedvencek state - újratölt ha változik
+    var favoriteIds by remember { mutableStateOf(FavoritesManager.getFavorites(context)) }
+    val favoriteDests = remember(favoriteIds, destinations) {
+        destinations.filter { it.first in favoriteIds }
     }
 
     Surface(
@@ -768,7 +778,41 @@ fun DestinationCard(
                             unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant)
                     )
                     if (searchQuery.isEmpty()) {
-                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        // Kedvencek szekció - csak ha van kedvenc
+                        if (favoriteDests.isNotEmpty()) {
+                            Text(
+                                text = if (currentLanguage == AppLanguage.HU) "Kedvencek" else "Favorites",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                            )
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(favoriteDests) { d ->
+                                    AssistChip(
+                                        onClick = { onSelected(d); expanded = false },
+                                        label = { Text(d.second) },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Star, null,
+                                                Modifier.size(AssistChipDefaults.IconSize),
+                                                tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+
+                        // Gyors elérések
+                        Text(
+                            text = if (currentLanguage == AppLanguage.HU) "Gyors elérés" else "Quick access",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, bottom = 4.dp)
+                        )
+                        LazyRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             destinations.find { it.first == "n7" }?.let { d -> item {
                                 AssistChip(onClick = { onSelected(d); expanded = false }, label = { Text(d.second) },
@@ -792,11 +836,12 @@ fun DestinationCard(
                         } else {
                             items(filteredDestinations) { dest ->
                                 val isSel = dest.first == selected.first
+                                val isFav = dest.first in favoriteIds
                                 Row(
                                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                                         .clickable { onSelected(dest); expanded = false; searchQuery = "" }
                                         .background(if (isSel) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else Color.Transparent)
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(Icons.Default.LocationOn, null,
@@ -805,7 +850,23 @@ fun DestinationCard(
                                     Spacer(Modifier.width(16.dp))
                                     Text(dest.second, style = MaterialTheme.typography.bodyLarge,
                                         color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = if (isSel) SemiBold else FontWeight.Normal)
+                                        fontWeight = if (isSel) SemiBold else FontWeight.Normal,
+                                        modifier = Modifier.weight(1f))
+                                    // Csillag ikon a jobb oldalon
+                                    IconButton(
+                                        onClick = {
+                                            FavoritesManager.toggleFavorite(context, dest.first)
+                                            favoriteIds = FavoritesManager.getFavorites(context)
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isFav) Icons.Default.Star else Icons.Default.StarOutline,
+                                            contentDescription = null,
+                                            tint = if (isFav) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
