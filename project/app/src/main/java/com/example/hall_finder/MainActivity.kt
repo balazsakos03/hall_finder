@@ -21,16 +21,13 @@ import com.example.hall_finder.ui.theme.Hall_finderTheme
 
 class MainActivity : ComponentActivity() {
 
-    // Bluetooth bekapcsolás kérő
     private val enableBluetoothLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { /* Bluetooth bekapcsolás eredménye - nem kell külön kezelni */ }
+    ) {  }
 
-    // Engedélykérő több engedélyhez egyszerre
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        // Ha Bluetooth engedély megvan, próbáljuk bekapcsolni
         val bluetoothGranted = permissions[Manifest.permission.BLUETOOTH_SCAN] == true ||
                 permissions[Manifest.permission.BLUETOOTH_CONNECT] == true
         if (bluetoothGranted) {
@@ -46,7 +43,6 @@ class MainActivity : ComponentActivity() {
         windowInsetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         windowInsetsController.hide(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
 
-        // Engedélyek kérése induláskor
         requestAllPermissions()
 
         setContent {
@@ -87,9 +83,7 @@ class MainActivity : ComponentActivity() {
 
     private fun requestAllPermissions() {
         val permissions = mutableListOf(
-            // Kamera - QR szkenneléshez
             Manifest.permission.CAMERA,
-            // Lépésszámláló - navigációhoz
             Manifest.permission.ACTIVITY_RECOGNITION
         )
 
