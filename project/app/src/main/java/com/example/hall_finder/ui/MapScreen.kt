@@ -14,6 +14,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -91,6 +92,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -141,16 +143,22 @@ fun MapScreen(
     val selectedDestinationId = remember { mutableStateOf(destinations.first().first) }
     val currentSelectedPair   = destinations.firstOrNull { it.first == selectedDestinationId.value } ?: destinations.first()
     val pathState             = remember { mutableStateOf<List<String>>(emptyList()) }
+    // Ha checkpoint snap történik és az nincs az útvonalon, innen újraszámítjuk
+    val pathStartOverride     = remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(startNodeId, selectedDestinationId.value, isAccessibleMode) {
+    LaunchedEffect(startNodeId, selectedDestinationId.value, isAccessibleMode, pathStartOverride.value) {
+        val from = pathStartOverride.value ?: startNodeId
         pathState.value = AStar(MapData.graph, MapData.nodes)
-            .findPath(startNodeId, selectedDestinationId.value, accessibleOnly = isAccessibleMode)
+            .findPath(from, selectedDestinationId.value, accessibleOnly = isAccessibleMode)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         MapContent(
             startNodeId = startNodeId, goalNodeId = selectedDestinationId.value,
-            path = pathState.value, isDarkMode = isDarkMode, currentLanguage = currentLanguage
+            path = pathState.value, isDarkMode = isDarkMode, currentLanguage = currentLanguage,
+            onCheckpointRepath = { checkpointNodeId ->
+                pathStartOverride.value = checkpointNodeId
+            }
         )
         DestinationCard(
             destinations = destinations, selected = currentSelectedPair,
@@ -178,7 +186,8 @@ fun MapContent(
     goalNodeId: String,
     path: List<String>,
     isDarkMode: Boolean,
-    currentLanguage: AppLanguage
+    currentLanguage: AppLanguage,
+    onCheckpointRepath: (String) -> Unit = {}
 ) {
     val figmaWidth = 1080f; val figmaHeight = 1920f
 
@@ -218,7 +227,6 @@ fun MapContent(
 
     LaunchedEffect(lastCheckpoint) {
         val checkpoint = lastCheckpoint ?: return@LaunchedEffect
-        // Ne snappeljen újra ugyanarra a checkpointra egymás után
         if (checkpoint.nodeId == lastSnapNodeId) return@LaunchedEffect
 
         val checkpointNode = MapData.nodes.firstOrNull { it.id == checkpoint.nodeId } ?: return@LaunchedEffect
@@ -228,19 +236,52 @@ fun MapContent(
         currentY = checkpointNode.y
         lastSnapNodeId = checkpoint.nodeId
 
-        // Ha a path tartalmazza ezt a node-t, frissítjük a targetPathIndex-et
+        // Ha a checkpoint szerepel az útvonalon, csak az indexet frissítjük
+        // Ha nem szerepel, újraszámítjuk az útvonalat a checkpoint node-tól a célig
         val nodeIndexInPath = path.indexOf(checkpoint.nodeId)
         if (nodeIndexInPath >= 0 && nodeIndexInPath < path.size - 1) {
             targetPathIndex = nodeIndexInPath + 1
+        } else {
+            // Újraszámítás jelzése a MapScreen-nek - ez triggereli az A* újrafuttatását
+            // a checkpoint node-tól, így az útvonal mindig a folyosón marad
+            targetPathIndex = 0
+            onCheckpointRepath(checkpoint.nodeId)
         }
 
-        // Snap vizuális visszajelzés
         showSnapEffect = true
         kotlinx.coroutines.delay(1500)
         showSnapEffect = false
 
         CheckpointManager.resetLastCheckpoint()
-        lastSnapNodeId = null // reset hogy ugyanoda is snapelhessen legközelebb
+        lastSnapNodeId = null
+    }
+
+    // Az aktuális szögeltérés a helyes iránytól - folyamatosan frissül arrowAngle változásakor
+    var currentAngleDiff by remember { mutableFloatStateOf(0f) }
+
+    // Animált szín a glow körnek - fade átmenettel vált zöld/sárga/piros között
+    val targetGlowColor = when {
+        currentAngleDiff <= 20f -> Color(0xFF4CAF50)
+        currentAngleDiff <= 45f -> Color(0xFFFFC107)
+        else                    -> Color(0xFFF44336)
+    }
+    val animatedGlowColor by animateColorAsState(
+        targetValue = targetGlowColor,
+        animationSpec = tween(durationMillis = 600),
+        label = "glowColor"
+    )
+
+    // Folyamatosan számoljuk az angleDiff-et, ne csak lépéskor
+    if (path.isNotEmpty() && targetPathIndex < path.size) {
+        val target = MapData.nodes.firstOrNull { it.id == path[targetPathIndex] }
+        if (target != null) {
+            val dx = target.x - currentX; val dy = target.y - currentY
+            var pathAngle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
+            pathAngle = (pathAngle + 360f) % 360f
+            var diff = Math.abs(arrowAngle - pathAngle)
+            if (diff > 180f) diff = 360f - diff
+            currentAngleDiff = diff
+        }
     }
 
     val performStep = {
@@ -405,6 +446,23 @@ fun MapContent(
                             center = Offset(snapX, snapY)
                         )
                     }
+
+                    // Irány visszajelző: glowing kör a nyíl körül (animált színátmenettel)
+                    if (path.isNotEmpty() && startNode.floor == currentVisibleFloor) {
+                        val cx = offsetX + animatedX * scale
+                        val cy = offsetY + animatedY * scale
+                        val arrowRadiusPx = with(density) { 20.dp.toPx() }
+                        val glowRadius = arrowRadiusPx * 1.4f
+
+                        drawCircle(color = animatedGlowColor.copy(alpha = 0.10f), radius = glowRadius * 1.3f, center = Offset(cx, cy))
+                        drawCircle(color = animatedGlowColor.copy(alpha = 0.22f), radius = glowRadius, center = Offset(cx, cy))
+                        drawCircle(
+                            color = animatedGlowColor.copy(alpha = 0.50f),
+                            radius = arrowRadiusPx * 1.25f,
+                            center = Offset(cx, cy),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = with(density) { 2.5.dp.toPx() })
+                        )
+                    }
                 }
 
                 // Lépcső ikonok
@@ -427,11 +485,13 @@ fun MapContent(
                     PinMarker(goalNode, offsetX, offsetY, scale, tertiaryColor)
                 }
 
-                // Navigációs nyíl
+                // Navigációs nyíl + irány visszajelző ív
                 if (startNode.floor == currentVisibleFloor) {
                     val sizeDp = 40.dp
                     val iconDp = 34.dp
                     val sizePx = with(density) { sizeDp.toPx() }
+
+                    // Navigációs nyíl
                     Box(
                         modifier = Modifier
                             .offset { IntOffset((startScreenX - sizePx / 2f).roundToInt(), (startScreenY - sizePx / 2f).roundToInt()) }
