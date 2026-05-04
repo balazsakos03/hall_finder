@@ -15,6 +15,12 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.material.icons.filled.Straight
+import androidx.compose.material.icons.filled.TurnLeft
+import androidx.compose.material.icons.filled.TurnRight
+import androidx.compose.material.icons.filled.TurnSlightLeft
+import androidx.compose.material.icons.filled.TurnSlightRight
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -118,6 +124,8 @@ import kotlin.math.roundToInt
 private val STAIR_NODE_IDS    = setOf("n18", "n19", "n21", "n22")
 private val ELEVATOR_NODE_IDS = setOf("n20", "n23")
 
+enum class TurnDirection { STRAIGHT, SLIGHT_LEFT, LEFT, SLIGHT_RIGHT, RIGHT }
+
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun MapScreen(
@@ -152,13 +160,34 @@ fun MapScreen(
             .findPath(from, selectedDestinationId.value, accessibleOnly = isAccessibleMode)
     }
 
+    // Menetidő becslés - az útvonal hosszából számítjuk
+    // Pixel -> méter konverzió: a térkép 1080px széles, ez kb. 50 méteres folyosót fed le
+    val pixelsPerMeter = 1080f / 50f
+    val walkingSpeedMs = 1.4f // átlagos gyaloglási sebesség m/s
+
+    val estimatedSeconds = remember(pathState.value) {
+        if (pathState.value.size < 2) return@remember 0
+        var totalPixels = 0f
+        for (i in 0 until pathState.value.size - 1) {
+            val from = MapData.nodes.firstOrNull { it.id == pathState.value[i] } ?: continue
+            val to   = MapData.nodes.firstOrNull { it.id == pathState.value[i + 1] } ?: continue
+            val dx = to.x - from.x; val dy = to.y - from.y
+            totalPixels += kotlin.math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+        }
+        val meters = totalPixels / pixelsPerMeter
+        (meters / walkingSpeedMs).toInt()
+    }
+
+    var currentTurnDirection by remember { mutableStateOf(TurnDirection.STRAIGHT) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         MapContent(
             startNodeId = startNodeId, goalNodeId = selectedDestinationId.value,
             path = pathState.value, isDarkMode = isDarkMode, currentLanguage = currentLanguage,
             onCheckpointRepath = { checkpointNodeId ->
                 pathStartOverride.value = checkpointNodeId
-            }
+            },
+            onTurnDirectionChanged = { currentTurnDirection = it }
         )
         DestinationCard(
             destinations = destinations, selected = currentSelectedPair,
@@ -166,8 +195,20 @@ fun MapScreen(
             onToggleDarkMode = onToggleDarkMode, isDarkMode = isDarkMode,
             currentLanguage = currentLanguage,
             isAccessibleMode = isAccessibleMode, onAccessibleModeChange = onAccessibleModeChange,
+            estimatedSeconds = estimatedSeconds,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 52.dp)
         )
+
+        // Fordulási panel - jobb oldalon, a DestinationCard alatt
+        if (pathState.value.isNotEmpty()) {
+            TurnPanel(
+                direction = currentTurnDirection,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 160.dp, end = 24.dp)
+            )
+        }
+
         FloatingActionButton(
             onClick = onBackToMenu,
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 24.dp, bottom = 48.dp),
@@ -187,7 +228,8 @@ fun MapContent(
     path: List<String>,
     isDarkMode: Boolean,
     currentLanguage: AppLanguage,
-    onCheckpointRepath: (String) -> Unit = {}
+    onCheckpointRepath: (String) -> Unit = {},
+    onTurnDirectionChanged: (TurnDirection) -> Unit = {}
 ) {
     val figmaWidth = 1080f; val figmaHeight = 1920f
 
@@ -223,7 +265,7 @@ fun MapContent(
     // Checkpoint snap figyelése
     val lastCheckpoint by CheckpointManager.lastCheckpoint.collectAsState()
     var lastSnapNodeId by remember { mutableStateOf<String?>(null) }
-    var showSnapEffect by remember { mutableStateOf(false) }
+
 
     LaunchedEffect(lastCheckpoint) {
         val checkpoint = lastCheckpoint ?: return@LaunchedEffect
@@ -247,10 +289,6 @@ fun MapContent(
             targetPathIndex = 0
             onCheckpointRepath(checkpoint.nodeId)
         }
-
-        showSnapEffect = true
-        kotlinx.coroutines.delay(1500)
-        showSnapEffect = false
 
         CheckpointManager.resetLastCheckpoint()
         lastSnapNodeId = null
@@ -282,6 +320,33 @@ fun MapContent(
             if (diff > 180f) diff = 360f - diff
             currentAngleDiff = diff
         }
+    }
+
+    // Fordulási irány számítása a következő két node alapján
+    if (path.size > targetPathIndex + 1) {
+        val curr = MapData.nodes.firstOrNull { it.id == path[targetPathIndex] }
+        val next = MapData.nodes.firstOrNull { it.id == path[targetPathIndex + 1] }
+        val prev = if (targetPathIndex > 0)
+            MapData.nodes.firstOrNull { it.id == path[targetPathIndex - 1] } else null
+
+        if (curr != null && next != null && prev != null) {
+            val inAngle  = Math.toDegrees(kotlin.math.atan2((curr.y - prev.y).toDouble(), (curr.x - prev.x).toDouble())).toFloat()
+            val outAngle = Math.toDegrees(kotlin.math.atan2((next.y - curr.y).toDouble(), (next.x - curr.x).toDouble())).toFloat()
+            var turn = outAngle - inAngle
+            if (turn > 180f) turn -= 360f
+            if (turn < -180f) turn += 360f
+
+            val direction = when {
+                turn < -60f  -> TurnDirection.LEFT
+                turn < -20f  -> TurnDirection.SLIGHT_LEFT
+                turn >  60f  -> TurnDirection.RIGHT
+                turn >  20f  -> TurnDirection.SLIGHT_RIGHT
+                else         -> TurnDirection.STRAIGHT
+            }
+            onTurnDirectionChanged(direction)
+        }
+    } else if (path.isNotEmpty()) {
+        onTurnDirectionChanged(TurnDirection.STRAIGHT)
     }
 
     val performStep = {
@@ -430,23 +495,6 @@ fun MapContent(
                     }
 
                     // Checkpoint snap vizuális visszajelzés - pulzáló kör
-                    if (showSnapEffect) {
-                        val snapNode = MapData.nodes.firstOrNull { it.id == lastSnapNodeId }
-                            ?: MapData.nodes.first { it.id == startNodeId }
-                        val snapX = offsetX + snapNode.x * scale
-                        val snapY = offsetY + snapNode.y * scale
-                        drawCircle(
-                            color = primaryColor.copy(alpha = 0.3f),
-                            radius = 60f,
-                            center = Offset(snapX, snapY)
-                        )
-                        drawCircle(
-                            color = primaryColor.copy(alpha = 0.6f),
-                            radius = 30f,
-                            center = Offset(snapX, snapY)
-                        )
-                    }
-
                     // Irány visszajelző: glowing kör a nyíl körül (animált színátmenettel)
                     if (path.isNotEmpty() && startNode.floor == currentVisibleFloor) {
                         val cx = offsetX + animatedX * scale
@@ -536,6 +584,46 @@ fun MapContent(
 // ── Segéd Composable-ök ──────────────────────────────────────────────────────
 
 @Composable
+private fun TurnPanel(
+    direction: TurnDirection,
+    modifier: Modifier = Modifier
+) {
+    val icon = when (direction) {
+        TurnDirection.STRAIGHT     -> Icons.Default.Straight
+        TurnDirection.SLIGHT_LEFT  -> Icons.Default.TurnSlightLeft
+        TurnDirection.LEFT         -> Icons.Default.TurnLeft
+        TurnDirection.SLIGHT_RIGHT -> Icons.Default.TurnSlightRight
+        TurnDirection.RIGHT        -> Icons.Default.TurnRight
+    }
+
+    val animatedColor by animateColorAsState(
+        targetValue = when (direction) {
+            TurnDirection.STRAIGHT    -> Color(0xFF4CAF50)
+            TurnDirection.SLIGHT_LEFT, TurnDirection.SLIGHT_RIGHT -> Color(0xFFFFC107)
+            TurnDirection.LEFT, TurnDirection.RIGHT -> Color(0xFF2196F3)
+        },
+        animationSpec = tween(400),
+        label = "turnColor"
+    )
+
+    Surface(
+        modifier = modifier.size(64.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = animatedColor.copy(alpha = 0.15f),
+        tonalElevation = 4.dp
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = animatedColor,
+                modifier = Modifier.size(38.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun NodeIcon(
     node: Node, offsetX: Float, offsetY: Float, scale: Float,
     icon: ImageVector, tint: Color, bgColor: Color
@@ -579,6 +667,11 @@ private fun DrawScope.drawRouteLine(start: Offset, end: Offset, primaryColor: Co
 
 // ── DestinationCard ──────────────────────────────────────────────────────────
 
+fun formatTime(seconds: Int): String {
+    return if (seconds < 60) "${seconds}s"
+    else "${seconds / 60}p ${seconds % 60}s"
+}
+
 @Composable
 fun DestinationCard(
     destinations: List<Pair<String, String>>,
@@ -589,6 +682,7 @@ fun DestinationCard(
     currentLanguage: AppLanguage,
     isAccessibleMode: Boolean,
     onAccessibleModeChange: (Boolean) -> Unit,
+    estimatedSeconds: Int = 0,
     modifier: Modifier = Modifier
 ) {
     var expanded    by remember { mutableStateOf(false) }
@@ -621,6 +715,21 @@ fun DestinationCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(2.dp))
                         Text(selected.second, style = MaterialTheme.typography.titleMedium, fontWeight = SemiBold)
+                        if (estimatedSeconds > 0) {
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.DirectionsWalk, null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(13.dp))
+                                Spacer(Modifier.width(3.dp))
+                                Text(
+                                    text = "~${formatTime(estimatedSeconds)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                            }
+                        }
                     }
                     FilledIconButton(
                         onClick = { onAccessibleModeChange(!isAccessibleMode) },
