@@ -1,6 +1,6 @@
-# 🗺️ Hall Finder - Indoor Navigation App
+# Hall Finder — Indoor Navigation App
 
-Egy modern, Android alapú beltéri navigációs alkalmazás, amely valós idejű hardveres szenzorfúzióval (PDR), A* útvonalkereséssel és QR-kódos pozicionálással segíti a felhasználókat az épületen belüli tájékozódásban.
+Android alapú beltéri navigációs alkalmazás, amely valós idejű szenzorfúziót, A* útvonalkeresést és QR-kódos pozicionálást kombinál. A cél egy olyan rendszer, amely GPS nélkül, kizárólag a telefon beépített szenzoraira és az épületbe telepített hardverre támaszkodva képes megbízhatóan navigálni zárt terekben.
 
 ![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Language-Kotlin-7F52FF?logo=kotlin&logoColor=white)
@@ -12,41 +12,77 @@ Egy modern, Android alapú beltéri navigációs alkalmazás, amely valós idej�
   <img src="res/screenshots/dark_mode.jpg" width="250">
 </div>
 
-## ✨ Fő Funkciók
+## Funkciók
 
-* 🚶‍♂️ **Valós idejű lépéskövetés (PDR):** A beépített lépésérzékelő és a forgásvektor (iránytű) kombinálásával az app offline, GPS nélkül is pontosan követi a mozgást.
-* 🧭 **Directional Map Matching:** Fejlett algoritmus, amely csak akkor regisztrálja a lépést a térképen, ha a felhasználó a kiszámolt útvonal irányába néz.
-* 📷 **Beépített QR Pozicionálás:** Villámgyors kezdőpont-kalibráció az appba integrált Google ML Kit vonalkód-olvasóval.
-* 🧠 **Az Útvonalkeresés:** Optimális útvonaltervezés a megadott csomópontok (Node-ok) és emeletek között.
-* 🎥 **Dinamikus Kamerakövetés:** "Google Maps" stílusú navigáció – a térkép forog és követi a felhasználót, de gesztusokra automatikusan kikapcsol, hogy szabadon lehessen böngészni.
-* 🧹 **Intelligens Útvonaltisztítás:** Haladás közben a már megtett útvonal automatikusan eltűnik a felhasználó mögött.
-* 🌓 **Kétnyelvű & Témák:** Magyar és Angol lokalizáció, beépített Világos / Sötét mód.
-* 📱 **Immersive Mode:** Zavaró navigációs sávok nélküli, teljes képernyős élmény.
+**Navigáció és pozicionálás**
 
-## 🛠️ Technológiai Stack
+A mozgáskövetés Pedestrian Dead Reckoning (PDR) alapon működik: a telefon lépésérzékelője és forgásvektora együtt adja meg, hogy a felhasználó merre és mennyit haladt. Lépést csak akkor regisztrál a rendszer, ha a telefon iránya egyezik az útvonal irányával — ez kiszűri a helyben forgolódást és az eszközrázkódásból eredő zajt.
 
-A projekt a legmodernebb Android fejlesztési irányelveket követi:
-* **Nyelv:** Kotlin
-* **UI Framework:** Jetpack Compose (Material Design 3)
-* **Kamera & ML:** CameraX API, Google ML Kit (Barcode Scanning)
-* **Hardver integráció:** Android SensorManager (`TYPE_STEP_DETECTOR`, `TYPE_ROTATION_VECTOR`)
-* **Animációk:** Compose Animation API (`Animatable`, `animateFloatAsState`)
+A kezdőpont kalibrálása QR-kód beolvasásával történik, amelyet a folyosókon elhelyezett kódok biztosítanak. A beolvasáshoz az app a Google ML Kit barcode scanning könyvtárát használja.
 
-## 🧠 Így működik a motorháztető alatt
+Az útvonaltervezés A* algoritmussal dolgozik egy előre definiált gráfon, amely tartalmazza az épület összes csomópontját, folyosóit és szintváltási lehetőségeit (lépcső, lift).
 
-A beltéri navigáció GPS hiányában a **Pedestrian Dead Reckoning (PDR)** módszerre épül:
-1.  **QR Beolvasás:** A felhasználó beolvas egy fizikai QR kódot (pl. `n1`), ami leteszi a kezdőpontra.
-2.  **Szenzorfúzió:** A rendszer másodpercenként többször ellenőrzi a felhasználó lépéseit és az eszköz dőlésszögét/irányát.
-3.  **Szűrés:** A szoftver kiszűri a "zajt" (pl. egy helyben forgolódás, vagy eszközrázkódás), és csak a valós, megfelelő irányba történő haladást vezeti át a 2D-s Canvas térképre.
+**BLE checkpoint rendszer**
 
-## 🚀 Telepítés és Futtatás
+Az épületbe elhelyezett ESP32 mikrocontrollerek BLE beacon módban folyamatosan sugározzák az azonosítójukat. Amikor a telefon elég közel kerül egy beaconhöz (kb. 1–3 méter, -55 dBm jelerősség felett), az alkalmazás automatikusan a checkpoint pozíciójára snapel és újraszámítja az útvonalat. Ez rendszeresen korrigálja a lépésszámláló által felhalmozott eltérést, és növeli a navigáció hosszú távú pontosságát.
 
-1. Klónozd a tárolót:
-   ```bash
-   git clone [https://github.com/felhasznaloneved/hall-finder.git](https://github.com/felhasznaloneved/hall-finder.git)
-   ```
-2. Nyisd meg a projektet Android Studio-ban.
+**Akadálymentes útvonaltervezés**
 
-3. Szinkronizáld a Gradle fájlokat.
+Bekapcsolható üzemmód mozgáskorlátozottak számára: ilyenkor az útvonaltervező kizárja a lépcsőket és kizárólag lifteken keresztül tervez szintváltást. A kapcsoló elérhető a QR-kód beolvasása előtt és navigáció közben is.
 
-4. Futtasd az alkalmazást egy fizikai Android eszközön (Emulátoron a lépésszámláló és a kamera funkciók korlátozottan működnek!).
+**Irány visszajelző**
+
+A navigációs nyíl körül egy színes glowing kör jelzi, hogy a felhasználó megfelelő irányba néz-e. Zöld jelzi a helyes irányt, sárga a kisebb eltérést, piros a rossz irányt. A váltás animált átmenettel történik.
+
+**Fordulási utasítások**
+
+A következő kereszteződésnél szükséges fordulat iránya egy külön panelen jelenik meg a képernyő bal alsó sarkában. A panel megkülönbözteti az egyenes haladást, az enyhe és az éles bal/jobb fordulatokat, és szín szerint is jelzi az utasítás típusát.
+
+**Menetidő becslés**
+
+Az útvonal teljes hosszából és egy átlagos gyaloglási sebesség alapján az alkalmazás megbecsüli a várható menetidőt, amely a célállomás neve alatt jelenik meg.
+
+**Kedvencek**
+
+Bármely célállomás elmenthető kedvencként a keresési listában lévő csillag ikonra koppintva. A kedvencek a telefon helyi tárolójában maradnak meg (SharedPreferences), szerverre vagy regisztrációra nincs szükség. A mentett helyek külön szekcióban jelennek meg a keresőben.
+
+**Egyéb**
+
+- Kétszintes térképmegjelenítés manuális emeletváltóval
+- Google Maps-szerű kamerakövetés: navigáció közben a térkép automatikusan a felhasználóra fókuszál és forog az iránytű szerint, kézzel szétcsípve vagy forgatva kikapcsol, a visszaközpontosítás gombbal visszakapcsolható
+- Magyar és angol nyelv, világos és sötét téma
+- Immersive mód (navigációs sávok elrejtve)
+
+## Technológiai stack
+
+| Réteg | Technológia |
+|---|---|
+| Nyelv | Kotlin |
+| UI | Jetpack Compose, Material Design 3 |
+| Kamera & vonalkód | CameraX, Google ML Kit Barcode Scanning |
+| Szenzorfúzió | Android SensorManager (TYPE_STEP_DETECTOR, TYPE_ROTATION_VECTOR) |
+| Bluetooth | Android BLE API (BluetoothLeScanner) |
+| Helyi tárolás | SharedPreferences |
+| Animációk | Compose Animation API (Animatable, animateFloatAsState, animateColorAsState) |
+| Útvonaltervezés | A* algoritmus egyedi gráfon |
+
+## Hogyan működik
+
+1. **QR beolvasás** — a felhasználó beolvassa a legközelebbi folyosói QR kódot, amely meghatározza a kezdőpontot a gráfon
+2. **Útvonaltervezés** — az A* algoritmus kiszámolja az optimális útvonalat a célállomásig, figyelembe véve az akadálymentesség beállítást
+3. **Navigáció** — a lépésérzékelő és az iránytű folyamatosan frissíti a pozíciót; a térkép forog és követi a felhasználót
+4. **Checkpoint korrekció** — ha a telefon közel kerül egy BLE beaconhöz, a rendszer automatikusan korrigálja a pozíciót és újraszámítja az útvonalat
+
+## Telepítés
+
+```bash
+git clone https://github.com/felhasznaloneved/hall-finder.git
+```
+
+Nyisd meg a projektet Android Studióban, szinkronizáld a Gradle fájlokat, majd futtasd egy fizikai eszközön. Emulátoron a lépésszámláló, a kamera és a Bluetooth funkciók nem elérhetők.
+
+Az alkalmazás az alábbi engedélyeket kéri indításkor: kamera (QR olvasáshoz), fizikai aktivitás (lépésszámlálóhoz), Bluetooth scan és connect (BLE checkpointokhoz).
+
+## ESP32 beacon beállítása
+
+A checkpoint rendszer ESP32 mikrokontrollereket használ BLE beacon módban. Minden eszköz a hozzá rendelt node azonosítóját sugározza (pl. `n4`). A firmware feltöltéséhez Arduino IDE szükséges, az ESP32 board support package telepítésével. A beacon szkript megtalálható a `/esp32` mappában.
