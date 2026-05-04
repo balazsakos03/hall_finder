@@ -85,4 +85,4 @@ Az alkalmazás az alábbi engedélyeket kéri indításkor: kamera (QR olvasásh
 
 ## ESP32 beacon beállítása
 
-A checkpoint rendszer ESP32 mikrokontrollereket használ BLE beacon módban. Minden eszköz a hozzá rendelt node azonosítóját sugározza (pl. `n4`). A firmware feltöltéséhez Arduino IDE szükséges, az ESP32 board support package telepítésével. A beacon szkript megtalálható a `/esp32` mappában.
+A checkpoint rendszer ESP32 mikrokontrollereket használ BLE beacon módban. Minden eszköz a hozzá rendelt node azonosítóját sugározza (pl. `n4`). A firmware feltöltéséhez Arduino IDE szükséges, az ESP32 board support package telepítésével. A beacon szkript megtalálható a `/esp32_script` mappában.
